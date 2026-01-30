@@ -181,7 +181,6 @@ bool loadGameScript(const char* filename) {
         std::cerr << "Cannot open game file: " << filename << std::endl;
         return false;
     }
-    fclose(fp);
     
     // Run the Python script
     PyObject* main_module = PyImport_AddModule("__main__");
@@ -191,8 +190,10 @@ bool loadGameScript(const char* filename) {
     if (result != 0) {
         std::cerr << "Failed to load game script: " << filename << std::endl;
         PyErr_Print();
+        fclose(fp);
         return false;
     }
+    fclose(fp);
     
     // Extract callbacks from the global namespace
     g_state.py_load = PyDict_GetItemString(global_dict, "love_load");
@@ -358,8 +359,13 @@ int main(int argc, char* argv[]) {
     // Initialize Python
     Py_Initialize();
     
-    // Add current directory to Python path
-    PyRun_SimpleString("import sys; sys.path.insert(0, '.')");
+    // Add paths to Python sys.path
+    // We need the current directory and the love/ directory for love_py
+    PyRun_SimpleString(
+        "import sys\n"
+        "sys.path.insert(0, '.')\n"
+        "sys.path.insert(0, './love')\n"
+    );
     
     // Load the game script
     if (!loadGameScript(argv[1])) {

@@ -14,7 +14,11 @@ Usage (in game script):
 """
 
 # Import the core bindings
-from . import _love2d_core
+try:
+    from . import _love2d_core
+except ImportError:
+    # Fallback for when imported directly (not as package)
+    import _love2d_core
 
 # Graphics module
 graphics = _love2d_core.graphics
