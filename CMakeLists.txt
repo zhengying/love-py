@@ -64,7 +64,28 @@ set_target_properties(_love2d_core PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/love
 )
 
+# Create the main LOVE executable (like love.exe)
+add_executable(love
+    src/love.cpp
+)
+
+target_include_directories(love PRIVATE
+    ${Python3_INCLUDE_DIRS}
+    ${SDL2_INCLUDE_DIRS}
+)
+
+target_link_libraries(love PRIVATE
+    ${Python3_LIBRARIES}
+    SDL2::SDL2
+    OpenGL::GL
+)
+
+set_target_properties(love PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin
+)
+
 # Install
-install(TARGETS _love2d_core
+install(TARGETS _love2d_core love
     LIBRARY DESTINATION love
+    RUNTIME DESTINATION .
 )
