@@ -87,6 +87,11 @@ love2d_py/
 - ✅ `love_py.graphics.rotate(angle)`
 - ✅ `love_py.graphics.scale(sx, sy)`
 
+### Images (L2.1 - NEW! 🎉)
+- ✅ `love_py.newImage(filename)` - Load PNG/JPG/BMP
+- ✅ `image:getWidth()` / `image:getHeight()`
+- ✅ `love_py.image.draw(image, x, y, r, sx, sy, ox, oy)`
+
 ### Window
 - ✅ `love_py.window.set_title(title)`
 - ✅ `love_py.window.get_dimensions()`
