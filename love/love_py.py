@@ -44,6 +44,10 @@ audio = _love2d_core.audio
 # Filesystem module
 filesystem = _love2d_core.filesystem
 
+# Image module
+image = _love2d_core.image
+newImage = image.newImage
+
 __version__ = "11.5.0"
 
 __all__ = [
@@ -55,5 +59,7 @@ __all__ = [
     'mouse',
     'audio',
     'filesystem',
+    'image',
+    'newImage',
     '__version__',
 ]

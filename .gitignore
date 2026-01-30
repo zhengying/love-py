@@ -60,6 +60,10 @@ htmlcov/
 docs/_build/
 
 # Game assets (if large)
+# Allow test images in examples
+!examples/*.png
+!examples/*.jpg
+!examples/*.jpeg
 *.png
 *.jpg
 *.jpeg

@@ -42,6 +42,7 @@ pybind11_add_module(_love2d_core
     src/audio_module.cpp
     src/filesystem_module.cpp
     src/callback_manager.cpp
+    src/image_module.cpp
 )
 
 target_include_directories(_love2d_core PRIVATE

@@ -31,6 +31,7 @@ void init_mouse(py::module_ &m);
 void init_callbacks(py::module_ &m);
 void init_audio(py::module_ &m);
 void init_filesystem(py::module_ &m);
+void init_image(py::module_ &m);
 
 // Core initialization
 bool love_init() {
@@ -116,4 +117,7 @@ PYBIND11_MODULE(_love2d_core, m) {
     
     py::module_ filesystem = m.def_submodule("filesystem", "Filesystem module");
     init_filesystem(filesystem);
+    
+    py::module_ image = m.def_submodule("image", "Image loading and texture management");
+    init_image(image);
 }
