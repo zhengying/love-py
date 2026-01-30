@@ -108,17 +108,17 @@ APIs are organized by priority level (L1-L5) with corresponding test requirement
 **Goal:** Feature-complete for most 2D games.
 
 ### L2.1 Graphics - Images
-- [ ] `love.graphics.newImage(filename)` - Load image
-- [ ] `Image:getWidth()` / `Image:getHeight()` - Get image dimensions
-- [ ] `Image:getDimensions()` - Get both dimensions
+- [~] `love.graphics.newImage(filename)` - Load image (Python implementation with PIL)
+- [~] `Image:getWidth()` / `Image:getHeight()` - Get image dimensions (Python implementation)
+- [~] `Image:getDimensions()` - Get both dimensions (Python implementation)
 - [ ] `Image:getFilter()` / `Image:setFilter()` - Image filtering
 - [ ] `love.graphics.draw(image, x, y, r, sx, sy, ox, oy, kx, ky)` - Draw image
 - [ ] `love.graphics.setBlendMode(mode)` - Set blend mode
 - [ ] `love.graphics.getBlendMode()` - Get blend mode
 
 **Test Requirements:**
-- [ ] Test image loading
-- [ ] Test image drawing
+- [~] Test image loading (works with PIL)
+- [ ] Test image drawing (requires C++ core)
 - [ ] Test blend modes
 
 ### L2.2 Graphics - Text
@@ -217,14 +217,14 @@ APIs are organized by priority level (L1-L5) with corresponding test requirement
 - [ ] Test each feature
 
 ### L2.9 Math
-- [ ] `love.math.random()` / `love.math.random(m)` / `love.math.random(m, n)`
-- [ ] `love.math.randomSeed(seed)` - Set random seed
-- [ ] `love.math.setRandomSeed(seed)` - Alternative seed setter
-- [ ] `love.math.newRandomGenerator(seed)` - Create RNG object
+- [x] `love.math.random()` / `love.math.random(m)` / `love.math.random(m, n)`
+- [x] `love.math.randomSeed(seed)` - Set random seed
+- [x] `love.math.setRandomSeed(seed)` - Alternative seed setter
+- [x] `love.math.newRandomGenerator(seed)` - Create RNG object
 
 **Test Requirements:**
-- [ ] Test random number generation
-- [ ] Test seed setting
+- [x] Test random number generation
+- [x] Test seed setting
 
 ---
 
@@ -309,19 +309,22 @@ APIs are organized by priority level (L1-L5) with corresponding test requirement
 - [ ] Test scissor operations
 
 ### L3.7 Math - Advanced
-- [ ] `love.math.newTransform()` - Create transform object
-- [ ] `Transform:translate(x, y)` - Translate transform
-- [ ] `Transform:rotate(angle)` - Rotate transform
-- [ ] `Transform:scale(sx, sy)` - Scale transform
-- [ ] `Transform:apply(other)` - Apply another transform
-- [ ] `Transform:reset()` - Reset to identity
-- [ ] `Transform:getMatrix()` - Get matrix values
-- [ ] `love.math.noise(x, y, z, w)` - Simplex noise
-- [ ] `love.math.newBezierCurve(points)` - Create Bezier curve
+- [x] `love.math.newTransform()` - Create transform object
+- [x] `Transform:translate(x, y)` - Translate transform
+- [x] `Transform:rotate(angle)` - Rotate transform
+- [x] `Transform:scale(sx, sy)` - Scale transform
+- [x] `Transform:shear(kx, ky)` - Shear transform
+- [x] `Transform:apply(other)` - Apply another transform
+- [x] `Transform:reset()` - Reset to identity
+- [x] `Transform:getMatrix()` - Get matrix values
+- [x] `Transform:transformPoint(x, y)` - Transform a point
+- [x] `Transform:inverseTransformPoint(x, y)` - Inverse transform a point
+- [~] `love.math.noise(x, y, z, w)` - Simplex noise (basic implementation)
+- [x] `love.math.newBezierCurve(points)` - Create Bezier curve
 
 **Test Requirements:**
-- [ ] Test transform operations
-- [ ] Test noise generation
+- [x] Test transform operations
+- [~] Test noise generation
 
 ### L3.8 Audio - Advanced
 - [ ] `love.audio.newSource(type)` - Create empty source
@@ -418,12 +421,12 @@ APIs are organized by priority level (L1-L5) with corresponding test requirement
 - [ ] `Channel:clear()` - Clear channel
 
 ### L4.8 System
-- [ ] `love.system.getOS()` - Get operating system
-- [ ] `love.system.getProcessorCount()` - Get CPU count
-- [ ] `love.system.getClipboardText()` - Get clipboard
-- [ ] `love.system.setClipboardText(text)` - Set clipboard
-- [ ] `love.system.openURL(url)` - Open URL in browser
-- [ ] `love.system.vibrate(seconds)` - Vibrate device
+- [x] `love.system.getOS()` - Get operating system
+- [x] `love.system.getProcessorCount()` - Get CPU count
+- [x] `love.system.getClipboardText()` - Get clipboard
+- [x] `love.system.setClipboardText(text)` - Set clipboard
+- [x] `love.system.openURL(url)` - Open URL in browser
+- [x] `love.system.vibrate(seconds)` - Vibrate device
 
 ### L4.9 Data Compression
 - [ ] `love.data.compress(container, format, data, level)` - Compress data
@@ -486,13 +489,13 @@ APIs are organized by priority level (L1-L5) with corresponding test requirement
 - [ ] Connection/disconnection callbacks
 
 ### L5.6 Image Module (Direct pixel access)
-- [ ] `love.image.newImageData(width, height)` - Create image data
-- [ ] `love.image.newImageData(filename)` - Load image data
-- [ ] `ImageData:getWidth()` / `ImageData:getHeight()`
-- [ ] `ImageData:getPixel(x, y)` - Get pixel color
-- [ ] `ImageData:setPixel(x, y, r, g, b, a)` - Set pixel
-- [ ] `ImageData:paste(source, x, y)` - Paste image data
-- [ ] `ImageData:encode(format)` - Encode to file
+- [x] `love.image.newImageData(width, height)` - Create image data
+- [x] `love.image.newImageData(filename)` - Load image data
+- [x] `ImageData:getWidth()` / `ImageData:getHeight()`
+- [x] `ImageData:getPixel(x, y)` - Get pixel color
+- [x] `ImageData:setPixel(x, y, r, g, b, a)` - Set pixel
+- [x] `ImageData:paste(source, x, y)` - Paste image data
+- [x] `ImageData:encode(format)` - Encode to file
 - [ ] `Image:newImageData()` - Get image data from image
 
 ### L5.7 Font Module (Glyph data)
