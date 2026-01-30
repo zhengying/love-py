@@ -273,20 +273,43 @@ static PyObject* font_newFont(PyObject* self, PyObject* args) {
         
         // Only create texture if there's actual bitmap data
         if (width > 0 && height > 0 && font->face->glyph->bitmap.buffer) {
+            // Get FreeType bitmap info
+            FT_Bitmap* bitmap = &font->face->glyph->bitmap;
+            int pitch = bitmap->pitch;
+            
+            // Allocate buffer for tightly-packed texture data (no padding)
+            unsigned char* tex_data = new unsigned char[width * height];
+            memset(tex_data, 0, width * height);
+            
+            // Handle different pixel modes from FreeType
+            if (bitmap->pixel_mode == FT_PIXEL_MODE_GRAY) {
+                // 8-bit grayscale - copy row by row accounting for pitch
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++) {
+                        tex_data[y * width + x] = bitmap->buffer[y * pitch + x];
+                    }
+                }
+            } else if (bitmap->pixel_mode == FT_PIXEL_MODE_MONO) {
+                // 1-bit monochrome - expand to 8-bit
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++) {
+                        // Extract bit and convert to 0 or 255
+                        unsigned char byte = bitmap->buffer[y * pitch + (x / 8)];
+                        unsigned char bit = (byte >> (7 - (x % 8))) & 1;
+                        tex_data[y * width + x] = bit ? 255 : 0;
+                    }
+                }
+            } else {
+                // Unknown pixel mode - skip this character
+                delete[] tex_data;
+                continue;
+            }
+            
             glGenTextures(1, &texture);
             glBindTexture(GL_TEXTURE_2D, texture);
             
-            // Handle FreeType bitmap pitch (stride) - rows may have padding
-            int pitch = font->face->glyph->bitmap.pitch;
-            
-            // Tell OpenGL about the row length (pitch in pixels, not bytes)
-            // For 1-byte per pixel (alpha), pitch == row length in pixels when positive
+            // Upload tightly-packed glyph bitmap as alpha texture
             glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-            if (pitch != width) {
-                glPixelStorei(GL_UNPACK_ROW_LENGTH, pitch);
-            }
-            
-            // Upload glyph bitmap as alpha texture
             glTexImage2D(
                 GL_TEXTURE_2D,
                 0,
@@ -296,13 +319,11 @@ static PyObject* font_newFont(PyObject* self, PyObject* args) {
                 0,
                 GL_ALPHA,
                 GL_UNSIGNED_BYTE,
-                font->face->glyph->bitmap.buffer
+                tex_data
             );
             
-            // Reset OpenGL state
-            if (pitch != width) {
-                glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-            }
+            // Clean up temp buffer
+            delete[] tex_data;
             
             // Use font's filter settings (defaults to linear, can be changed with setFilter)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -617,13 +638,13 @@ static PyObject* graphics_print(PyObject* self, PyObject* args) {
         float h = (float)ch->height;
         
         // Draw textured quad
-        // Flip texture V coordinates because FreeType bitmap has origin at top
+        // FreeType bitmap origin is at top-left, so we need to flip V coordinates
         glBindTexture(GL_TEXTURE_2D, ch->texture_id);
         glBegin(GL_QUADS);
-        glTexCoord2f(0.0f, 1.0f); glVertex2f(xpos, ypos);
-        glTexCoord2f(1.0f, 1.0f); glVertex2f(xpos + w, ypos);
-        glTexCoord2f(1.0f, 0.0f); glVertex2f(xpos + w, ypos + h);
-        glTexCoord2f(0.0f, 0.0f); glVertex2f(xpos, ypos + h);
+        glTexCoord2f(0.0f, 0.0f); glVertex2f(xpos, ypos);         // Top-left vertex uses top-left texcoord
+        glTexCoord2f(1.0f, 0.0f); glVertex2f(xpos + w, ypos);     // Top-right vertex uses top-right texcoord
+        glTexCoord2f(1.0f, 1.0f); glVertex2f(xpos + w, ypos + h); // Bottom-right vertex uses bottom-right texcoord
+        glTexCoord2f(0.0f, 1.0f); glVertex2f(xpos, ypos + h);     // Bottom-left vertex uses bottom-left texcoord
         glEnd();
         
         // Advance cursor (advance is in 26.6 fixed point format)
