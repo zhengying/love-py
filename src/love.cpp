@@ -7,13 +7,28 @@
  * Usage: ./love game.py
  */
 
+#define PY_SSIZE_T_CLEAN
 #include <Python.h>
-#include <SDL.h>
+#include <SDL3/SDL.h>
 #include <OpenGL/gl.h>
 #include <iostream>
 #include <string>
 #include <cstring>
 #include <cmath>
+#include <sys/stat.h>
+#if defined(_WIN32)
+    #include <direct.h>
+    #include <windows.h>
+#else
+    #include <dirent.h>
+    #include <unistd.h>
+#endif
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+#include <ft2build.h>
+#include FT_FREETYPE_H
 
 // Global state for the game
 struct GameState {
@@ -39,9 +54,319 @@ struct GameState {
     PyObject* py_mousepressed = nullptr;
     PyObject* py_mousereleased = nullptr;
     PyObject* py_mousemoved = nullptr;
+    
+    // Font state
+    PyObject* current_font = nullptr;
+    PyObject* default_font = nullptr;  // Cached default font
 };
 
 static GameState g_state;
+
+// ============================================================================
+// Image Type Definition
+// ============================================================================
+
+typedef struct {
+    PyObject_HEAD
+    GLuint texture_id;
+    int width;
+    int height;
+} ImageObject;
+
+static void image_dealloc(PyObject* self) {
+    ImageObject* img = (ImageObject*)self;
+    if (img->texture_id != 0) {
+        glDeleteTextures(1, &img->texture_id);
+    }
+    Py_TYPE(self)->tp_free((PyObject*)self);
+}
+
+static PyObject* image_getWidth(PyObject* self, PyObject* args) {
+    ImageObject* img = (ImageObject*)self;
+    return PyLong_FromLong(img->width);
+}
+
+static PyObject* image_getHeight(PyObject* self, PyObject* args) {
+    ImageObject* img = (ImageObject*)self;
+    return PyLong_FromLong(img->height);
+}
+
+static PyMethodDef ImageMethods[] = {
+    {"getWidth", (PyCFunction)image_getWidth, METH_NOARGS, "Get image width"},
+    {"getHeight", (PyCFunction)image_getHeight, METH_NOARGS, "Get image height"},
+    {nullptr, nullptr, 0, nullptr}
+};
+
+static PyTypeObject ImageType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "love.Image",
+    .tp_basicsize = sizeof(ImageObject),
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_doc = "Image object",
+    .tp_dealloc = image_dealloc,
+    .tp_methods = ImageMethods,
+};
+
+// ============================================================================
+// Font Type Definition
+// ============================================================================
+
+static FT_Library ft_library = nullptr;
+
+struct Character {
+    GLuint texture_id;
+    int width;
+    int height;
+    int bearing_x;
+    int bearing_y;
+    long advance;
+};
+
+typedef struct {
+    PyObject_HEAD
+    FT_Face face;
+    int size;
+    Character characters[128];
+    GLint filter_min;
+    GLint filter_mag;
+} FontObject;
+
+static void font_dealloc(PyObject* self) {
+    FontObject* font = (FontObject*)self;
+    
+    // Only cleanup if FreeType library is still valid
+    if (ft_library && font->face) {
+        FT_Done_Face(font->face);
+        font->face = nullptr;
+    }
+    
+    // Note: We can't delete OpenGL textures here during Python shutdown
+    // as the GL context may already be destroyed
+    Py_TYPE(self)->tp_free((PyObject*)self);
+}
+
+static PyObject* font_getHeight(PyObject* self, PyObject* args) {
+    FontObject* font = (FontObject*)self;
+    if (font->face) {
+        return PyLong_FromLong(font->face->size->metrics.height >> 6);
+    }
+    return PyLong_FromLong(0);
+}
+
+static PyObject* font_getWidth(PyObject* self, PyObject* args) {
+    FontObject* font = (FontObject*)self;
+    const char* text;
+    if (!PyArg_ParseTuple(args, "s", &text))
+        return nullptr;
+    
+    float width = 0;
+    for (const char* p = text; *p; p++) {
+        if (*p < 128 && font->characters[*p].texture_id != 0) {
+            width += (font->characters[*p].advance >> 6);
+        }
+    }
+    return PyFloat_FromDouble(width);
+}
+
+static PyObject* font_setFilter(PyObject* self, PyObject* args) {
+    FontObject* font = (FontObject*)self;
+    const char* min_filter;
+    const char* mag_filter;
+    
+    if (!PyArg_ParseTuple(args, "ss", &min_filter, &mag_filter))
+        return nullptr;
+    
+    // Parse minification filter
+    if (strcmp(min_filter, "linear") == 0) {
+        font->filter_min = GL_LINEAR;
+    } else if (strcmp(min_filter, "nearest") == 0) {
+        font->filter_min = GL_NEAREST;
+    } else {
+        PyErr_SetString(PyExc_ValueError, "Invalid minification filter. Use 'linear' or 'nearest'.");
+        return nullptr;
+    }
+    
+    // Parse magnification filter
+    if (strcmp(mag_filter, "linear") == 0) {
+        font->filter_mag = GL_LINEAR;
+    } else if (strcmp(mag_filter, "nearest") == 0) {
+        font->filter_mag = GL_NEAREST;
+    } else {
+        PyErr_SetString(PyExc_ValueError, "Invalid magnification filter. Use 'linear' or 'nearest'.");
+        return nullptr;
+    }
+    
+    // Update existing textures
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    for (int c = 0; c < 128; c++) {
+        if (font->characters[c].texture_id != 0) {
+            glBindTexture(GL_TEXTURE_2D, font->characters[c].texture_id);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, font->filter_min);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, font->filter_mag);
+        }
+    }
+    glBindTexture(GL_TEXTURE_2D, 0);
+    
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef FontMethods[] = {
+    {"getHeight", (PyCFunction)font_getHeight, METH_NOARGS, "Get font height"},
+    {"getWidth", (PyCFunction)font_getWidth, METH_VARARGS, "Get text width"},
+    {"setFilter", (PyCFunction)font_setFilter, METH_VARARGS, "Set texture filter (min_filter, mag_filter) - 'linear' or 'nearest'"},
+    {nullptr, nullptr, 0, nullptr}
+};
+
+static PyTypeObject FontType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "love.Font",
+    .tp_basicsize = sizeof(FontObject),
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_doc = "Font object",
+    .tp_dealloc = font_dealloc,
+    .tp_methods = FontMethods,
+};
+
+static PyObject* font_newFont(PyObject* self, PyObject* args) {
+    const char* filename;
+    int size = 12;
+    if (!PyArg_ParseTuple(args, "s|i", &filename, &size))
+        return nullptr;
+
+    if (!ft_library) {
+        if (FT_Init_FreeType(&ft_library)) {
+            PyErr_SetString(PyExc_RuntimeError, "Failed to initialize FreeType");
+            return nullptr;
+        }
+    }
+
+    FontObject* font = PyObject_New(FontObject, &FontType);
+    if (!font) {
+        return nullptr;
+    }
+
+    font->face = nullptr;
+    font->size = size;
+    memset(font->characters, 0, sizeof(font->characters));
+    font->filter_min = GL_LINEAR;  // Default: linear filtering
+    font->filter_mag = GL_LINEAR;
+
+    if (FT_New_Face(ft_library, filename, 0, &font->face)) {
+        Py_DECREF(font);
+        PyErr_SetString(PyExc_IOError, "Failed to load font");
+        return nullptr;
+    }
+
+    FT_Set_Pixel_Sizes(font->face, 0, size);
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+    for (unsigned char c = 0; c < 128; c++) {
+        // Load character with better hinting
+        if (FT_Load_Char(font->face, c, FT_LOAD_RENDER | FT_LOAD_FORCE_AUTOHINT)) {
+            continue;
+        }
+
+        GLuint texture = 0;
+        int width = font->face->glyph->bitmap.width;
+        int height = font->face->glyph->bitmap.rows;
+        
+        // Only create texture if there's actual bitmap data
+        if (width > 0 && height > 0 && font->face->glyph->bitmap.buffer) {
+            glGenTextures(1, &texture);
+            glBindTexture(GL_TEXTURE_2D, texture);
+            
+            // Handle FreeType bitmap pitch (stride) - rows may have padding
+            int pitch = font->face->glyph->bitmap.pitch;
+            
+            // Tell OpenGL about the row length (pitch in pixels, not bytes)
+            // For 1-byte per pixel (alpha), pitch == row length in pixels when positive
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+            if (pitch != width) {
+                glPixelStorei(GL_UNPACK_ROW_LENGTH, pitch);
+            }
+            
+            // Upload glyph bitmap as alpha texture
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_ALPHA,
+                width,
+                height,
+                0,
+                GL_ALPHA,
+                GL_UNSIGNED_BYTE,
+                font->face->glyph->bitmap.buffer
+            );
+            
+            // Reset OpenGL state
+            if (pitch != width) {
+                glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+            }
+            
+            // Use font's filter settings (defaults to linear, can be changed with setFilter)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, font->filter_min);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, font->filter_mag);
+        }
+
+        font->characters[c].texture_id = texture;
+        font->characters[c].width = width;
+        font->characters[c].height = height;
+        font->characters[c].bearing_x = font->face->glyph->bitmap_left;
+        font->characters[c].bearing_y = font->face->glyph->bitmap_top;
+        font->characters[c].advance = font->face->glyph->advance.x;
+    }
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    return (PyObject*)font;
+}
+
+static PyMethodDef FontModuleMethods[] = {
+    {"newFont", font_newFont, METH_VARARGS, "Create new font from file (filename, size=12)"},
+    {nullptr, nullptr, 0, nullptr}
+};
+
+static PyObject* image_newImage(PyObject* self, PyObject* args) {
+    const char* filename;
+    if (!PyArg_ParseTuple(args, "s", &filename))
+        return nullptr;
+
+    int width, height, channels;
+    unsigned char* data = stbi_load(filename, &width, &height, &channels, 4);
+    if (!data) {
+        PyErr_SetString(PyExc_IOError, "Failed to load image");
+        return nullptr;
+    }
+
+    ImageObject* img = PyObject_New(ImageObject, &ImageType);
+    if (!img) {
+        stbi_image_free(data);
+        return nullptr;
+    }
+
+    img->width = width;
+    img->height = height;
+
+    glGenTextures(1, &img->texture_id);
+    glBindTexture(GL_TEXTURE_2D, img->texture_id);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    stbi_image_free(data);
+
+    return (PyObject*)img;
+}
+
+static PyMethodDef ImageModuleMethods[] = {
+    {"newImage", image_newImage, METH_VARARGS, "Load an image file (filename) -> Image"},
+    {nullptr, nullptr, 0, nullptr}
+};
 
 // ============================================================================
 // Graphics Module Functions (exposed to Python)
@@ -187,6 +512,213 @@ static PyObject* graphics_getDimensions(PyObject* self, PyObject* args) {
     return Py_BuildValue("(ii)", g_state.width, g_state.height);
 }
 
+static PyObject* graphics_drawImage(PyObject* self, PyObject* args, PyObject* kwargs) {
+    PyObject* image_obj;
+    float x = 0.0f, y = 0.0f;
+    float r = 0.0f, sx = 1.0f, sy = 1.0f;
+    float ox = 0.0f, oy = 0.0f;
+
+    static const char* kwlist[] = {"image", "x", "y", "r", "sx", "sy", "ox", "oy", nullptr};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|ffffff", (char**)kwlist,
+                                     &image_obj, &x, &y, &r, &sx, &sy, &ox, &oy))
+        return nullptr;
+
+    if (!PyObject_TypeCheck(image_obj, &ImageType)) {
+        PyErr_SetString(PyExc_TypeError, "Expected Image object");
+        return nullptr;
+    }
+
+    ImageObject* img = (ImageObject*)image_obj;
+
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, img->texture_id);
+
+    glPushMatrix();
+    glTranslatef(x, y, 0.0f);
+    glRotatef(r * 180.0f / 3.14159f, 0.0f, 0.0f, 1.0f);
+    glScalef(sx, sy, 1.0f);
+    glTranslatef(-ox, -oy, 0.0f);
+
+    float w = (float)img->width;
+    float h = (float)img->height;
+
+    glBegin(GL_QUADS);
+    glTexCoord2f(0.0f, 0.0f); glVertex2f(0.0f, 0.0f);
+    glTexCoord2f(1.0f, 0.0f); glVertex2f(w, 0.0f);
+    glTexCoord2f(1.0f, 1.0f); glVertex2f(w, h);
+    glTexCoord2f(0.0f, 1.0f); glVertex2f(0.0f, h);
+    glEnd();
+
+    glPopMatrix();
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDisable(GL_TEXTURE_2D);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* graphics_print(PyObject* self, PyObject* args) {
+    const char* text;
+    float x, y;
+    float r = 0.0f;
+    float sx = 1.0f, sy = 1.0f;
+    
+    if (!PyArg_ParseTuple(args, "sff|fff", &text, &x, &y, &r, &sx, &sy))
+        return nullptr;
+    
+    if (!g_state.current_font || !PyObject_IsInstance(g_state.current_font, (PyObject*)&FontType)) {
+        Py_RETURN_NONE;
+    }
+    
+    FontObject* font = (FontObject*)g_state.current_font;
+    
+    // Get baseline from font metrics
+    float baseline = 0.0f;
+    if (font->face && font->face->size) {
+        baseline = (font->face->size->metrics.ascender >> 6);
+    }
+    
+    glEnable(GL_TEXTURE_2D);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // Simple texture environment - just modulate
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+    
+    // Use the current color for text (white = use texture alpha with full color)
+    glColor4f(g_state.color_r, g_state.color_g, g_state.color_b, g_state.color_a);
+    
+    glPushMatrix();
+    glTranslatef(x, y, 0.0f);
+    glRotatef(r * 180.0f / 3.14159f, 0.0f, 0.0f, 1.0f);
+    glScalef(sx, sy, 1.0f);
+    
+    float cursor_x = 0.0f;
+    
+    for (const char* p = text; *p; p++) {
+        unsigned char c = (unsigned char)*p;
+        if (c >= 128 || font->characters[c].texture_id == 0) {
+            // Handle space specially
+            if (c == ' ' && font->face) {
+                cursor_x += (font->characters['a'].advance >> 6) * 0.5f;
+            }
+            continue;
+        }
+        
+        Character* ch = &font->characters[c];
+        
+        // Calculate position
+        // Note: OpenGL y=0 is at top (inverted from FreeTYpe), so we flip y
+        // bearing_y is distance from baseline to top of glyph (positive upward in FreeType)
+        // In OpenGL Y-down, we need: baseline - bearing_y to position glyph correctly
+        float xpos = cursor_x + ch->bearing_x;
+        float ypos = baseline - ch->bearing_y;  // Correct: distance down from baseline to glyph top
+        float w = (float)ch->width;
+        float h = (float)ch->height;
+        
+        // Draw textured quad
+        // Flip texture V coordinates because FreeType bitmap has origin at top
+        glBindTexture(GL_TEXTURE_2D, ch->texture_id);
+        glBegin(GL_QUADS);
+        glTexCoord2f(0.0f, 1.0f); glVertex2f(xpos, ypos);
+        glTexCoord2f(1.0f, 1.0f); glVertex2f(xpos + w, ypos);
+        glTexCoord2f(1.0f, 0.0f); glVertex2f(xpos + w, ypos + h);
+        glTexCoord2f(0.0f, 0.0f); glVertex2f(xpos, ypos + h);
+        glEnd();
+        
+        // Advance cursor (advance is in 26.6 fixed point format)
+        cursor_x += (ch->advance >> 6);
+    }
+    
+    glPopMatrix();
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDisable(GL_TEXTURE_2D);
+    glDisable(GL_BLEND);
+    
+    Py_RETURN_NONE;
+}
+
+static PyObject* graphics_setFont(PyObject* self, PyObject* args) {
+    PyObject* font_obj;
+    if (!PyArg_ParseTuple(args, "O", &font_obj))
+        return nullptr;
+    
+    if (!PyObject_IsInstance(font_obj, (PyObject*)&FontType)) {
+        PyErr_SetString(PyExc_TypeError, "Expected Font object");
+        return nullptr;
+    }
+    
+    Py_XDECREF(g_state.current_font);
+    g_state.current_font = font_obj;
+    Py_INCREF(font_obj);
+    
+    Py_RETURN_NONE;
+}
+
+static PyObject* createDefaultFont(int size = 13);
+
+static PyObject* graphics_getFont(PyObject* self, PyObject* args) {
+    // If we already have a current font, return it
+    if (g_state.current_font) {
+        Py_INCREF(g_state.current_font);
+        return g_state.current_font;
+    }
+    
+    // Create default font if we don't have one cached (use larger size for better quality)
+    if (!g_state.default_font) {
+        g_state.default_font = createDefaultFont(16);
+        if (!g_state.default_font) {
+            // Failed to create default font
+            PyErr_Clear();  // Clear the error so we can return None
+            Py_RETURN_NONE;
+        }
+    }
+    
+    // Use the cached default font as current font
+    Py_INCREF(g_state.default_font);
+    g_state.current_font = g_state.default_font;
+    
+    Py_INCREF(g_state.current_font);
+    return g_state.current_font;
+}
+
+// Create default font from embedded resources
+static PyObject* createDefaultFont(int size) {
+    // Try multiple possible paths for the default font
+    const char* possible_paths[] = {
+        "resources/font.ttf",
+        "../resources/font.ttf",
+        "../../resources/font.ttf",
+        "./resources/font.ttf",
+        nullptr
+    };
+    
+    for (int i = 0; possible_paths[i] != nullptr; i++) {
+        struct stat buffer;
+        if (stat(possible_paths[i], &buffer) == 0) {
+            // File exists, try to load it
+            PyObject* args = Py_BuildValue("(si)", possible_paths[i], size);
+            if (!args) continue;
+            
+            PyObject* font = font_newFont(nullptr, args);
+            Py_DECREF(args);
+            
+            if (font) {
+                return font;
+            }
+            PyErr_Clear();  // Clear error and try next path
+        }
+    }
+    
+    // Could not find default font
+    PyErr_SetString(PyExc_RuntimeError, "Could not load default font from resources/font.ttf");
+    return nullptr;
+}
+
+static PyObject* graphics_newFont(PyObject* self, PyObject* args) {
+    return font_newFont(self, args);
+}
+
 // Graphics module method table
 static PyMethodDef GraphicsMethods[] = {
     {"clear", graphics_clear, METH_VARARGS, "Clear the screen (r, g, b, a)"},
@@ -206,6 +738,11 @@ static PyMethodDef GraphicsMethods[] = {
     {"getWidth", graphics_getWidth, METH_NOARGS, "Get screen width"},
     {"getHeight", graphics_getHeight, METH_NOARGS, "Get screen height"},
     {"getDimensions", graphics_getDimensions, METH_NOARGS, "Get screen dimensions"},
+    {"drawImage", (PyCFunction)graphics_drawImage, METH_VARARGS | METH_KEYWORDS, "Draw image (image, x=0, y=0, r=0, sx=1, sy=1, ox=0, oy=0)"},
+    {"print", graphics_print, METH_VARARGS, "Print text (text, x, y, r=0, sx=1, sy=1)"},
+    {"setFont", graphics_setFont, METH_VARARGS, "Set current font"},
+    {"getFont", graphics_getFont, METH_NOARGS, "Get current font"},
+    {"newFont", graphics_newFont, METH_VARARGS, "Create new font (filename, size=12)"},
     {nullptr, nullptr, 0, nullptr}
 };
 
@@ -303,7 +840,7 @@ static PyMethodDef TimerMethods[] = {
 static PyObject* keyboard_isDown(PyObject* self, PyObject* args) {
     // Check if any of the provided keys are down
     Py_ssize_t n = PyTuple_Size(args);
-    const Uint8* state = SDL_GetKeyboardState(nullptr);
+    const bool* state = SDL_GetKeyboardState(nullptr);
     
     for (Py_ssize_t i = 0; i < n; i++) {
         PyObject* item = PyTuple_GetItem(args, i);
@@ -329,21 +866,21 @@ static PyMethodDef KeyboardMethods[] = {
 // ============================================================================
 
 static PyObject* mouse_getPosition(PyObject* self, PyObject* args) {
-    int x, y;
+    float x, y;
     SDL_GetMouseState(&x, &y);
-    return Py_BuildValue("(ii)", x, y);
+    return Py_BuildValue("(ii)", (int)x, (int)y);
 }
 
 static PyObject* mouse_getX(PyObject* self, PyObject* args) {
-    int x, y;
+    float x, y;
     SDL_GetMouseState(&x, &y);
-    return PyLong_FromLong(x);
+    return PyLong_FromLong((int)x);
 }
 
 static PyObject* mouse_getY(PyObject* self, PyObject* args) {
-    int x, y;
+    float x, y;
     SDL_GetMouseState(&x, &y);
-    return PyLong_FromLong(y);
+    return PyLong_FromLong((int)y);
 }
 
 static PyObject* mouse_isDown(PyObject* self, PyObject* args) {
@@ -351,8 +888,8 @@ static PyObject* mouse_isDown(PyObject* self, PyObject* args) {
     if (!PyArg_ParseTuple(args, "i", &button))
         return nullptr;
     
-    Uint32 state = SDL_GetMouseState(nullptr, nullptr);
-    if (state & SDL_BUTTON(button)) {
+    SDL_MouseButtonFlags state = SDL_GetMouseState(nullptr, nullptr);
+    if (state & SDL_BUTTON_MASK(button)) {
         Py_RETURN_TRUE;
     }
     Py_RETURN_FALSE;
@@ -372,13 +909,180 @@ static PyMethodDef MouseMethods[] = {
 
 static PyObject* event_quit(PyObject* self, PyObject* args) {
     SDL_Event event;
-    event.type = SDL_QUIT;
+    event.type = SDL_EVENT_QUIT;
     SDL_PushEvent(&event);
     Py_RETURN_NONE;
 }
 
 static PyMethodDef EventMethods[] = {
     {"quit", event_quit, METH_NOARGS, "Push quit event"},
+    {nullptr, nullptr, 0, nullptr}
+};
+
+// ============================================================================
+// Filesystem Module Functions (C++17)
+// ============================================================================
+
+#include <fstream>
+#include <sstream>
+
+static PyObject* filesystem_read(PyObject* self, PyObject* args) {
+    const char* filename;
+    if (!PyArg_ParseTuple(args, "s", &filename))
+        return nullptr;
+    
+    std::ifstream file(filename, std::ios::binary);
+    if (!file.is_open()) {
+        PyErr_SetString(PyExc_FileNotFoundError, "Could not open file");
+        return nullptr;
+    }
+    
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string content = buffer.str();
+    
+    return PyUnicode_FromStringAndSize(content.c_str(), content.size());
+}
+
+static PyObject* filesystem_write(PyObject* self, PyObject* args) {
+    const char* filename;
+    const char* data;
+    Py_ssize_t data_len;
+    if (!PyArg_ParseTuple(args, "ss#", &filename, &data, &data_len))
+        return nullptr;
+    
+    std::ofstream file(filename, std::ios::binary);
+    if (!file.is_open()) {
+        PyErr_SetString(PyExc_IOError, "Could not open file for writing");
+        return nullptr;
+    }
+    
+    file.write(data, data_len);
+    file.close();
+    
+    Py_RETURN_TRUE;
+}
+
+static PyObject* filesystem_exists(PyObject* self, PyObject* args) {
+    const char* path;
+    if (!PyArg_ParseTuple(args, "s", &path))
+        return nullptr;
+    
+    struct stat buffer;
+    if (stat(path, &buffer) == 0) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject* filesystem_isFile(PyObject* self, PyObject* args) {
+    const char* path;
+    if (!PyArg_ParseTuple(args, "s", &path))
+        return nullptr;
+    
+    struct stat buffer;
+    if (stat(path, &buffer) == 0) {
+        if (S_ISREG(buffer.st_mode)) {
+            Py_RETURN_TRUE;
+        }
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject* filesystem_isDirectory(PyObject* self, PyObject* args) {
+    const char* path;
+    if (!PyArg_ParseTuple(args, "s", &path))
+        return nullptr;
+    
+    struct stat buffer;
+    if (stat(path, &buffer) == 0) {
+        if (S_ISDIR(buffer.st_mode)) {
+            Py_RETURN_TRUE;
+        }
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject* filesystem_createDirectory(PyObject* self, PyObject* args) {
+    const char* name;
+    if (!PyArg_ParseTuple(args, "s", &name))
+        return nullptr;
+    
+    #if defined(_WIN32)
+        int result = mkdir(name);
+    #else
+        int result = mkdir(name, 0755);
+    #endif
+    
+    if (result == 0) {
+        Py_RETURN_TRUE;
+    } else {
+        PyErr_SetString(PyExc_IOError, "Failed to create directory");
+        return nullptr;
+    }
+}
+
+static PyObject* filesystem_getWorkingDirectory(PyObject* self, PyObject* args) {
+    char cwd[4096];
+    if (getcwd(cwd, sizeof(cwd)) != nullptr) {
+        return PyUnicode_FromString(cwd);
+    } else {
+        PyErr_SetString(PyExc_IOError, "Failed to get working directory");
+        return nullptr;
+    }
+}
+
+static PyObject* filesystem_getDirectoryItems(PyObject* self, PyObject* args) {
+    const char* dir;
+    if (!PyArg_ParseTuple(args, "s", &dir))
+        return nullptr;
+    
+    PyObject* list = PyList_New(0);
+    if (!list) return nullptr;
+    
+    #if defined(_WIN32)
+        WIN32_FIND_DATA findData;
+        char searchPath[4096];
+        snprintf(searchPath, sizeof(searchPath), "%s/*", dir);
+        HANDLE hFind = FindFirstFile(searchPath, &findData);
+        
+        if (hFind != INVALID_HANDLE_VALUE) {
+            do {
+                PyObject* name = PyUnicode_FromString(findData.cFileName);
+                if (name) {
+                    PyList_Append(list, name);
+                    Py_DECREF(name);
+                }
+            } while (FindNextFile(hFind, &findData));
+            FindClose(hFind);
+        }
+    #else
+        DIR* d = opendir(dir);
+        if (d) {
+            struct dirent* entry;
+            while ((entry = readdir(d)) != nullptr) {
+                PyObject* name = PyUnicode_FromString(entry->d_name);
+                if (name) {
+                    PyList_Append(list, name);
+                    Py_DECREF(name);
+                }
+            }
+            closedir(d);
+        }
+    #endif
+    
+    return list;
+}
+
+static PyMethodDef FilesystemMethods[] = {
+    {"read", filesystem_read, METH_VARARGS, "Read file contents"},
+    {"write", filesystem_write, METH_VARARGS, "Write data to file"},
+    {"exists", filesystem_exists, METH_VARARGS, "Check if path exists"},
+    {"isFile", filesystem_isFile, METH_VARARGS, "Check if path is a file"},
+    {"isDirectory", filesystem_isDirectory, METH_VARARGS, "Check if path is a directory"},
+    {"createDirectory", filesystem_createDirectory, METH_VARARGS, "Create a directory"},
+    {"getWorkingDirectory", filesystem_getWorkingDirectory, METH_NOARGS, "Get current working directory"},
+    {"getDirectoryItems", filesystem_getDirectoryItems, METH_VARARGS, "List files in directory"},
     {nullptr, nullptr, 0, nullptr}
 };
 
@@ -410,6 +1114,18 @@ static PyModuleDef EventModule = {
     PyModuleDef_HEAD_INIT, "love.event", nullptr, -1, EventMethods
 };
 
+static PyModuleDef FilesystemModule = {
+    PyModuleDef_HEAD_INIT, "love.filesystem", nullptr, -1, FilesystemMethods
+};
+
+static PyModuleDef ImageModule = {
+    PyModuleDef_HEAD_INIT, "love.image", nullptr, -1, ImageModuleMethods
+};
+
+static PyModuleDef FontModule = {
+    PyModuleDef_HEAD_INIT, "love.font", nullptr, -1, FontModuleMethods
+};
+
 // Submodules as PyObject*
 static PyObject* createLoveModule() {
     // Create main love module
@@ -427,6 +1143,9 @@ static PyObject* createLoveModule() {
     PyObject* keyboard = PyModule_Create(&KeyboardModule);
     PyObject* mouse = PyModule_Create(&MouseModule);
     PyObject* event = PyModule_Create(&EventModule);
+    PyObject* filesystem = PyModule_Create(&FilesystemModule);
+    PyObject* image = PyModule_Create(&ImageModule);
+    PyObject* font = PyModule_Create(&FontModule);
     
     if (graphics) PyModule_AddObject(love, "graphics", graphics);
     if (window) PyModule_AddObject(love, "window", window);
@@ -434,6 +1153,23 @@ static PyObject* createLoveModule() {
     if (keyboard) PyModule_AddObject(love, "keyboard", keyboard);
     if (mouse) PyModule_AddObject(love, "mouse", mouse);
     if (event) PyModule_AddObject(love, "event", event);
+    if (filesystem) PyModule_AddObject(love, "filesystem", filesystem);
+    if (image) PyModule_AddObject(love, "image", image);
+    if (font) PyModule_AddObject(love, "font", font);
+    
+    // Initialize Image type
+    if (PyType_Ready(&ImageType) < 0) {
+        return nullptr;
+    }
+    Py_INCREF(&ImageType);
+    PyModule_AddObject(image, "Image", (PyObject*)&ImageType);
+    
+    // Initialize Font type
+    if (PyType_Ready(&FontType) < 0) {
+        return nullptr;
+    }
+    Py_INCREF(&FontType);
+    PyModule_AddObject(font, "Font", (PyObject*)&FontType);
     
     // Add version
     PyModule_AddStringConstant(love, "__version__", "11.5.0");
@@ -446,7 +1182,7 @@ static PyObject* createLoveModule() {
 // ============================================================================
 
 bool initSDL() {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) < 0) {
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cerr << "SDL_Init failed: " << SDL_GetError() << std::endl;
         return false;
     }
@@ -458,12 +1194,14 @@ bool initSDL() {
     
     g_state.window = SDL_CreateWindow(
         g_state.title.c_str(),
-        SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED,
         g_state.width,
         g_state.height,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN
+        SDL_WINDOW_OPENGL
     );
+    
+    if (g_state.window) {
+        SDL_SetWindowPosition(g_state.window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+    }
     
     if (!g_state.window) {
         std::cerr << "SDL_CreateWindow failed: " << SDL_GetError() << std::endl;
@@ -491,8 +1229,20 @@ bool initSDL() {
 }
 
 void quitSDL() {
+    // Cleanup fonts (must be done before FreeType cleanup)
+    Py_XDECREF(g_state.current_font);
+    g_state.current_font = nullptr;
+    
+    Py_XDECREF(g_state.default_font);
+    g_state.default_font = nullptr;
+    
+    if (ft_library) {
+        FT_Done_FreeType(ft_library);
+        ft_library = nullptr;
+    }
+    
     if (g_state.gl_context) {
-        SDL_GL_DeleteContext(g_state.gl_context);
+        SDL_GL_DestroyContext(g_state.gl_context);
         g_state.gl_context = nullptr;
     }
     if (g_state.window) {
@@ -623,68 +1373,68 @@ int runGame() {
         callPythonCallback(g_state.py_load);
     }
     
-    Uint32 last_time = SDL_GetTicks();
+    Uint64 last_time = SDL_GetTicks();
     
     while (g_state.running) {
-        Uint32 current_time = SDL_GetTicks();
+        Uint64 current_time = SDL_GetTicks();
         double dt = (current_time - last_time) / 1000.0;
         last_time = current_time;
         
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
-                case SDL_QUIT:
+                case SDL_EVENT_QUIT:
                     g_state.running = false;
                     break;
                     
-                case SDL_KEYDOWN:
-                    if (event.key.keysym.sym == SDLK_ESCAPE) {
+                case SDL_EVENT_KEY_DOWN:
+                    if (event.key.key == SDLK_ESCAPE) {
                         g_state.running = false;
                     }
                     if (g_state.py_keypressed) {
-                        const char* key = SDL_GetKeyName(event.key.keysym.sym);
+                        const char* key = SDL_GetKeyName(event.key.key);
                         callPythonKeyCallback(g_state.py_keypressed, key, 
-                                            event.key.keysym.scancode, 
+                                            event.key.scancode, 
                                             event.key.repeat != 0);
                     }
                     break;
                     
-                case SDL_KEYUP:
+                case SDL_EVENT_KEY_UP:
                     if (g_state.py_keyreleased) {
-                        const char* key = SDL_GetKeyName(event.key.keysym.sym);
+                        const char* key = SDL_GetKeyName(event.key.key);
                         callPythonKeyCallback(g_state.py_keyreleased, key,
-                                            event.key.keysym.scancode, false);
+                                            event.key.scancode, false);
                     }
                     break;
                     
-                case SDL_MOUSEBUTTONDOWN:
+                case SDL_EVENT_MOUSE_BUTTON_DOWN:
                     if (g_state.py_mousepressed) {
-                        int x, y;
+                        float x, y;
                         SDL_GetMouseState(&x, &y);
-                        callPythonMouseCallback(g_state.py_mousepressed, x, y,
+                        callPythonMouseCallback(g_state.py_mousepressed, (int)x, (int)y,
                                               event.button.button,
-                                              event.button.which == SDL_TOUCH_MOUSEID,
+                                              false,  // SDL3 doesn't have which field the same way
                                               event.button.clicks);
                     }
                     break;
                     
-                case SDL_MOUSEBUTTONUP:
+                case SDL_EVENT_MOUSE_BUTTON_UP:
                     if (g_state.py_mousereleased) {
-                        int x, y;
+                        float x, y;
                         SDL_GetMouseState(&x, &y);
-                        callPythonMouseCallback(g_state.py_mousereleased, x, y,
+                        callPythonMouseCallback(g_state.py_mousereleased, (int)x, (int)y,
                                               event.button.button,
-                                              event.button.which == SDL_TOUCH_MOUSEID,
+                                              false,  // SDL3 doesn't have which field the same way
                                               event.button.clicks);
                     }
                     break;
                     
-                case SDL_MOUSEMOTION:
+                case SDL_EVENT_MOUSE_MOTION:
                     if (g_state.py_mousemoved) {
                         callPythonMouseCallback(g_state.py_mousemoved, 
-                                              event.motion.x, event.motion.y,
-                                              event.motion.xrel, event.motion.yrel,
-                                              event.motion.which == SDL_TOUCH_MOUSEID);
+                                              (int)event.motion.x, (int)event.motion.y,
+                                              (int)event.motion.xrel, (int)event.motion.yrel,
+                                              false);  // SDL3 doesn't have which field the same way
                     }
                     break;
             }
