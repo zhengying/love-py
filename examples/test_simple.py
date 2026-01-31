@@ -9,7 +9,13 @@ import love
 
 def love_load():
     print("Game loaded!")
+    print("LOVE version:", love.getVersion())
+    print("Version compatible (11.5.0):", love.isVersionCompatible("11.5.0"))
+    print("Deprecation output (before):", love.hasDeprecationOutput())
+    love.setDeprecationOutput(True)
+    print("Deprecation output (after):", love.hasDeprecationOutput())
     love.window.setTitle("Simple Test")
+    print("Window mode:", love.window.getMode())
     love.graphics.setBackgroundColor(0.1, 0.1, 0.15)
 
 def love_update(dt):

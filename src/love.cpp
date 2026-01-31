@@ -39,16 +39,26 @@ struct GameState {
     int width = 800;
     int height = 600;
     std::string title = "LOVE2D Python";
+    Uint64 window_flags = SDL_WINDOW_OPENGL;
+    bool vsync = true;
     
     // Graphics state
     float color_r = 1.0f, color_g = 1.0f, color_b = 1.0f, color_a = 1.0f;
     float bg_r = 0.0f, bg_g = 0.0f, bg_b = 0.0f, bg_a = 1.0f;
     
     // Python callbacks
+    PyObject* py_conf = nullptr;
     PyObject* py_load = nullptr;
     PyObject* py_update = nullptr;
     PyObject* py_draw = nullptr;
     PyObject* py_quit = nullptr;
+    PyObject* py_focus = nullptr;
+    PyObject* py_resize = nullptr;
+    PyObject* py_textinput = nullptr;
+    PyObject* py_visible = nullptr;
+    PyObject* py_wheelmoved = nullptr;
+    PyObject* py_directorydropped = nullptr;
+    PyObject* py_filedropped = nullptr;
     PyObject* py_keypressed = nullptr;
     PyObject* py_keyreleased = nullptr;
     PyObject* py_mousepressed = nullptr;
@@ -58,9 +68,53 @@ struct GameState {
     // Font state
     PyObject* current_font = nullptr;
     PyObject* default_font = nullptr;  // Cached default font
+
+    double last_dt = 0.0;
+    double fps = 0.0;
 };
 
 static GameState g_state;
+static bool g_deprecation_output = false;
+
+static void updateGLViewportAndProjection() {
+    glViewport(0, 0, g_state.width, g_state.height);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, g_state.width, g_state.height, 0, -1, 1);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+}
+
+static void addToPythonSysPath(const std::string& path) {
+    PyObject* sysPath = PySys_GetObject("path");
+    if (!sysPath || !PyList_Check(sysPath)) {
+        return;
+    }
+
+    PyObject* pyPath = PyUnicode_FromString(path.c_str());
+    if (!pyPath) {
+        PyErr_Clear();
+        return;
+    }
+
+    if (PyList_Insert(sysPath, 0, pyPath) != 0) {
+        PyErr_Clear();
+    }
+    Py_DECREF(pyPath);
+}
+
+static std::string getDirectoryFromPath(const std::string& path) {
+    if (path.empty()) return ".";
+
+    size_t pos = path.find_last_of("/\\");
+    if (pos == std::string::npos) {
+        return ".";
+    }
+    if (pos == 0) {
+        return "/";
+    }
+    return path.substr(0, pos);
+}
 
 // ============================================================================
 // Image Type Definition
@@ -771,6 +825,47 @@ static PyMethodDef GraphicsMethods[] = {
 // Window Module Functions
 // ============================================================================
 
+static void applyWindowFlagsFromDict(PyObject* flags) {
+    if (!flags || flags == Py_None) {
+        return;
+    }
+
+    if (!PyDict_Check(flags)) {
+        PyErr_SetString(PyExc_TypeError, "flags must be a dict");
+        return;
+    }
+
+    PyObject* fullscreen = PyDict_GetItemString(flags, "fullscreen");
+    if (fullscreen) {
+        int enabled = PyObject_IsTrue(fullscreen);
+        if (enabled == 1) {
+            g_state.window_flags |= SDL_WINDOW_FULLSCREEN;
+        } else if (enabled == 0) {
+            g_state.window_flags &= ~SDL_WINDOW_FULLSCREEN;
+        }
+    }
+
+    PyObject* resizable = PyDict_GetItemString(flags, "resizable");
+    if (resizable) {
+        int enabled = PyObject_IsTrue(resizable);
+        if (enabled == 1) {
+            g_state.window_flags |= SDL_WINDOW_RESIZABLE;
+        } else if (enabled == 0) {
+            g_state.window_flags &= ~SDL_WINDOW_RESIZABLE;
+        }
+    }
+
+    PyObject* vsync = PyDict_GetItemString(flags, "vsync");
+    if (vsync) {
+        int enabled = PyObject_IsTrue(vsync);
+        if (enabled == 1) {
+            g_state.vsync = true;
+        } else if (enabled == 0) {
+            g_state.vsync = false;
+        }
+    }
+}
+
 static PyObject* window_setMode(PyObject* self, PyObject* args) {
     int width, height;
     PyObject* flags = nullptr;
@@ -779,9 +874,20 @@ static PyObject* window_setMode(PyObject* self, PyObject* args) {
     
     g_state.width = width;
     g_state.height = height;
+
+    applyWindowFlagsFromDict(flags);
+    if (PyErr_Occurred()) {
+        return nullptr;
+    }
     
     if (g_state.window) {
         SDL_SetWindowSize(g_state.window, width, height);
+        SDL_GL_MakeCurrent(g_state.window, g_state.gl_context);
+        updateGLViewportAndProjection();
+
+        SDL_SetWindowResizable(g_state.window, (g_state.window_flags & SDL_WINDOW_RESIZABLE) != 0);
+        SDL_SetWindowFullscreen(g_state.window, (g_state.window_flags & SDL_WINDOW_FULLSCREEN) != 0);
+        SDL_GL_SetSwapInterval(g_state.vsync ? 1 : 0);
     }
     
     Py_RETURN_NONE;
@@ -800,6 +906,38 @@ static PyObject* window_setTitle(PyObject* self, PyObject* args) {
     Py_RETURN_NONE;
 }
 
+static PyObject* window_getMode(PyObject* self, PyObject* args) {
+    PyObject* flags = PyDict_New();
+    if (!flags) return nullptr;
+
+    PyObject* fullscreen = (g_state.window_flags & SDL_WINDOW_FULLSCREEN) ? Py_True : Py_False;
+    PyObject* resizable = (g_state.window_flags & SDL_WINDOW_RESIZABLE) ? Py_True : Py_False;
+    PyObject* vsync = g_state.vsync ? Py_True : Py_False;
+
+    Py_INCREF(fullscreen);
+    Py_INCREF(resizable);
+    Py_INCREF(vsync);
+
+    PyDict_SetItemString(flags, "fullscreen", fullscreen);
+    PyDict_SetItemString(flags, "resizable", resizable);
+    PyDict_SetItemString(flags, "vsync", vsync);
+
+    Py_DECREF(fullscreen);
+    Py_DECREF(resizable);
+    Py_DECREF(vsync);
+
+    PyObject* result = Py_BuildValue("(iiO)", g_state.width, g_state.height, flags);
+    Py_DECREF(flags);
+    return result;
+}
+
+static PyObject* window_close(PyObject* self, PyObject* args) {
+    SDL_Event event;
+    event.type = SDL_EVENT_QUIT;
+    SDL_PushEvent(&event);
+    Py_RETURN_NONE;
+}
+
 static PyObject* window_getWidth(PyObject* self, PyObject* args) {
     return PyLong_FromLong(g_state.width);
 }
@@ -814,7 +952,9 @@ static PyObject* window_getDimensions(PyObject* self, PyObject* args) {
 
 static PyMethodDef WindowMethods[] = {
     {"setMode", window_setMode, METH_VARARGS, "Set window mode (width, height, flags)"},
+    {"getMode", window_getMode, METH_NOARGS, "Get window mode (width, height, flags)"},
     {"setTitle", window_setTitle, METH_VARARGS, "Set window title"},
+    {"close", window_close, METH_NOARGS, "Close the window"},
     {"getWidth", window_getWidth, METH_NOARGS, "Get window width"},
     {"getHeight", window_getHeight, METH_NOARGS, "Get window height"},
     {"getDimensions", window_getDimensions, METH_NOARGS, "Get window dimensions"},
@@ -830,12 +970,11 @@ static PyObject* timer_getTime(PyObject* self, PyObject* args) {
 }
 
 static PyObject* timer_getDelta(PyObject* self, PyObject* args) {
-    // Return a placeholder - real delta time is calculated in the main loop
-    return PyFloat_FromDouble(1.0 / 60.0);
+    return PyFloat_FromDouble(g_state.last_dt);
 }
 
 static PyObject* timer_getFPS(PyObject* self, PyObject* args) {
-    return PyFloat_FromDouble(60.0);
+    return PyFloat_FromDouble(g_state.fps);
 }
 
 static PyObject* timer_sleep(PyObject* self, PyObject* args) {
@@ -937,6 +1076,93 @@ static PyObject* event_quit(PyObject* self, PyObject* args) {
 
 static PyMethodDef EventMethods[] = {
     {"quit", event_quit, METH_NOARGS, "Push quit event"},
+    {nullptr, nullptr, 0, nullptr}
+};
+
+// ============================================================================
+// Love Global Functions
+// ============================================================================
+
+static PyObject* love_getVersion(PyObject* self, PyObject* args) {
+    return Py_BuildValue("(iiis)", 11, 5, 0, "Mysterious Mysteries");
+}
+
+static PyObject* love_setDeprecationOutput(PyObject* self, PyObject* args) {
+    int enabled = 0;
+    if (!PyArg_ParseTuple(args, "p", &enabled)) {
+        return nullptr;
+    }
+    g_deprecation_output = enabled != 0;
+    Py_RETURN_NONE;
+}
+
+static PyObject* love_hasDeprecationOutput(PyObject* self, PyObject* args) {
+    if (g_deprecation_output) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static bool parseVersionString(const char* versionStr, int& major, int& minor, int& revision) {
+    major = 0;
+    minor = 0;
+    revision = 0;
+
+    if (!versionStr) return false;
+
+    std::string s(versionStr);
+    size_t p1 = s.find('.');
+    if (p1 == std::string::npos) {
+        return false;
+    }
+    size_t p2 = s.find('.', p1 + 1);
+
+    try {
+        major = std::stoi(s.substr(0, p1));
+        if (p2 == std::string::npos) {
+            minor = std::stoi(s.substr(p1 + 1));
+            revision = 0;
+            return true;
+        }
+        minor = std::stoi(s.substr(p1 + 1, p2 - (p1 + 1)));
+        revision = std::stoi(s.substr(p2 + 1));
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+static PyObject* love_isVersionCompatible(PyObject* self, PyObject* args) {
+    const char* versionStr = nullptr;
+    if (!PyArg_ParseTuple(args, "s", &versionStr)) {
+        return nullptr;
+    }
+
+    int major = 0, minor = 0, revision = 0;
+    if (!parseVersionString(versionStr, major, minor, revision)) {
+        PyErr_SetString(PyExc_ValueError, "Invalid version string");
+        return nullptr;
+    }
+
+    const int currentMajor = 11;
+    const int currentMinor = 5;
+    const int currentRevision = 0;
+
+    bool compatible = (major == currentMajor) &&
+                      ((minor < currentMinor) ||
+                       (minor == currentMinor && revision <= currentRevision));
+
+    if (compatible) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyMethodDef LoveMethods[] = {
+    {"getVersion", love_getVersion, METH_NOARGS, "Get LOVE version (major, minor, revision, codename)"},
+    {"setDeprecationOutput", love_setDeprecationOutput, METH_VARARGS, "Enable/disable deprecation output"},
+    {"hasDeprecationOutput", love_hasDeprecationOutput, METH_NOARGS, "Check if deprecation output is enabled"},
+    {"isVersionCompatible", love_isVersionCompatible, METH_VARARGS, "Check if version string is compatible"},
     {nullptr, nullptr, 0, nullptr}
 };
 
@@ -1151,7 +1377,7 @@ static PyModuleDef FontModule = {
 static PyObject* createLoveModule() {
     // Create main love module
     static PyModuleDef LoveModule = {
-        PyModuleDef_HEAD_INIT, "love", "LOVE2D Python API", -1, nullptr
+        PyModuleDef_HEAD_INIT, "love", "LOVE2D Python API", -1, LoveMethods
     };
     
     PyObject* love = PyModule_Create(&LoveModule);
@@ -1203,7 +1429,7 @@ static PyObject* createLoveModule() {
 // ============================================================================
 
 bool initSDL() {
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::cerr << "SDL_Init failed: " << SDL_GetError() << std::endl;
         return false;
     }
@@ -1217,7 +1443,7 @@ bool initSDL() {
         g_state.title.c_str(),
         g_state.width,
         g_state.height,
-        SDL_WINDOW_OPENGL
+        g_state.window_flags
     );
     
     if (g_state.window) {
@@ -1236,14 +1462,11 @@ bool initSDL() {
     }
     
     SDL_GL_MakeCurrent(g_state.window, g_state.gl_context);
-    SDL_GL_SetSwapInterval(1);
-    
-    glViewport(0, 0, g_state.width, g_state.height);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, g_state.width, g_state.height, 0, -1, 1);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
+    SDL_GL_SetSwapInterval(g_state.vsync ? 1 : 0);
+
+    updateGLViewportAndProjection();
+
+    SDL_StartTextInput(g_state.window);
     
     g_state.initialized = true;
     return true;
@@ -1324,6 +1547,35 @@ bool callPythonKeyCallback(PyObject* callback, const char* key, int scancode, bo
     return true;
 }
 
+static bool callPythonKeyReleasedCallback(PyObject* callback, const char* key, int scancode) {
+    if (!callback || callback == Py_None) return true;
+
+    PyObject* args2 = Py_BuildValue("(si)", key, scancode);
+    PyObject* result2 = PyObject_CallObject(callback, args2);
+    Py_DECREF(args2);
+
+    if (result2) {
+        Py_DECREF(result2);
+        return true;
+    }
+
+    if (PyErr_ExceptionMatches(PyExc_TypeError)) {
+        PyErr_Clear();
+        PyObject* args3 = Py_BuildValue("(sii)", key, scancode, 0);
+        PyObject* result3 = PyObject_CallObject(callback, args3);
+        Py_DECREF(args3);
+        if (!result3) {
+            PyErr_Print();
+            return false;
+        }
+        Py_DECREF(result3);
+        return true;
+    }
+
+    PyErr_Print();
+    return false;
+}
+
 bool callPythonMouseCallback(PyObject* callback, int x, int y, int button, bool istouch, int presses) {
     if (!callback || callback == Py_None) return true;
     
@@ -1338,6 +1590,119 @@ bool callPythonMouseCallback(PyObject* callback, int x, int y, int button, bool 
     
     Py_DECREF(result);
     return true;
+}
+
+bool callPythonMouseMoveCallback(PyObject* callback, int x, int y, int dx, int dy, bool istouch) {
+    if (!callback || callback == Py_None) return true;
+
+    PyObject* args = Py_BuildValue("(iiiii)", x, y, dx, dy, istouch ? 1 : 0);
+    PyObject* result = PyObject_CallObject(callback, args);
+    Py_DECREF(args);
+
+    if (!result) {
+        PyErr_Print();
+        return false;
+    }
+
+    Py_DECREF(result);
+    return true;
+}
+
+static bool callPythonResizeCallback(int w, int h) {
+    if (!g_state.py_resize || g_state.py_resize == Py_None) return true;
+    PyObject* args = Py_BuildValue("(ii)", w, h);
+    PyObject* result = PyObject_CallObject(g_state.py_resize, args);
+    Py_DECREF(args);
+    if (!result) {
+        PyErr_Print();
+        return false;
+    }
+    Py_DECREF(result);
+    return true;
+}
+
+static bool callPythonBoolCallback(PyObject* callback, bool value) {
+    if (!callback || callback == Py_None) return true;
+    PyObject* args = Py_BuildValue("(i)", value ? 1 : 0);
+    PyObject* result = PyObject_CallObject(callback, args);
+    Py_DECREF(args);
+    if (!result) {
+        PyErr_Print();
+        return false;
+    }
+    Py_DECREF(result);
+    return true;
+}
+
+static bool callPythonTextCallback(PyObject* callback, const char* text) {
+    if (!callback || callback == Py_None) return true;
+    PyObject* args = Py_BuildValue("(s)", text ? text : "");
+    PyObject* result = PyObject_CallObject(callback, args);
+    Py_DECREF(args);
+    if (!result) {
+        PyErr_Print();
+        return false;
+    }
+    Py_DECREF(result);
+    return true;
+}
+
+static bool callPythonWheelCallback(float x, float y) {
+    if (!g_state.py_wheelmoved || g_state.py_wheelmoved == Py_None) return true;
+    PyObject* args = Py_BuildValue("(ff)", x, y);
+    PyObject* result = PyObject_CallObject(g_state.py_wheelmoved, args);
+    Py_DECREF(args);
+    if (!result) {
+        PyErr_Print();
+        return false;
+    }
+    Py_DECREF(result);
+    return true;
+}
+
+static bool callPythonDropCallback(PyObject* callback, const char* path) {
+    if (!callback || callback == Py_None) return true;
+    PyObject* args = Py_BuildValue("(s)", path ? path : "");
+    PyObject* result = PyObject_CallObject(callback, args);
+    Py_DECREF(args);
+    if (!result) {
+        PyErr_Print();
+        return false;
+    }
+    Py_DECREF(result);
+    return true;
+}
+
+static void applyConfTable(PyObject* t) {
+    if (!t || !PyDict_Check(t)) {
+        return;
+    }
+
+    PyObject* window = PyDict_GetItemString(t, "window");
+    if (!window || !PyDict_Check(window)) {
+        return;
+    }
+
+    PyObject* width = PyDict_GetItemString(window, "width");
+    if (width && PyLong_Check(width)) {
+        g_state.width = (int)PyLong_AsLong(width);
+    }
+
+    PyObject* height = PyDict_GetItemString(window, "height");
+    if (height && PyLong_Check(height)) {
+        g_state.height = (int)PyLong_AsLong(height);
+    }
+
+    PyObject* title = PyDict_GetItemString(window, "title");
+    if (title && PyUnicode_Check(title)) {
+        const char* s = PyUnicode_AsUTF8(title);
+        if (s) {
+            g_state.title = s;
+        }
+    }
+
+    applyWindowFlagsFromDict(window);
+    PyErr_Clear();
 }
 
 bool loadGameScript(const char* filename) {
@@ -1358,26 +1723,86 @@ bool loadGameScript(const char* filename) {
         return false;
     }
     fclose(fp);
-    
+
+    g_state.py_conf = PyDict_GetItemString(global_dict, "love_conf");
     g_state.py_load = PyDict_GetItemString(global_dict, "love_load");
     g_state.py_update = PyDict_GetItemString(global_dict, "love_update");
     g_state.py_draw = PyDict_GetItemString(global_dict, "love_draw");
     g_state.py_quit = PyDict_GetItemString(global_dict, "love_quit");
+    g_state.py_focus = PyDict_GetItemString(global_dict, "love_focus");
+    g_state.py_resize = PyDict_GetItemString(global_dict, "love_resize");
+    g_state.py_textinput = PyDict_GetItemString(global_dict, "love_textinput");
+    g_state.py_visible = PyDict_GetItemString(global_dict, "love_visible");
+    g_state.py_wheelmoved = PyDict_GetItemString(global_dict, "love_wheelmoved");
+    g_state.py_directorydropped = PyDict_GetItemString(global_dict, "love_directorydropped");
+    g_state.py_filedropped = PyDict_GetItemString(global_dict, "love_filedropped");
     g_state.py_keypressed = PyDict_GetItemString(global_dict, "love_keypressed");
     g_state.py_keyreleased = PyDict_GetItemString(global_dict, "love_keyreleased");
     g_state.py_mousepressed = PyDict_GetItemString(global_dict, "love_mousepressed");
     g_state.py_mousereleased = PyDict_GetItemString(global_dict, "love_mousereleased");
     g_state.py_mousemoved = PyDict_GetItemString(global_dict, "love_mousemoved");
     
+    Py_XINCREF(g_state.py_conf);
     Py_XINCREF(g_state.py_load);
     Py_XINCREF(g_state.py_update);
     Py_XINCREF(g_state.py_draw);
     Py_XINCREF(g_state.py_quit);
+    Py_XINCREF(g_state.py_focus);
+    Py_XINCREF(g_state.py_resize);
+    Py_XINCREF(g_state.py_textinput);
+    Py_XINCREF(g_state.py_visible);
+    Py_XINCREF(g_state.py_wheelmoved);
+    Py_XINCREF(g_state.py_directorydropped);
+    Py_XINCREF(g_state.py_filedropped);
     Py_XINCREF(g_state.py_keypressed);
     Py_XINCREF(g_state.py_keyreleased);
     Py_XINCREF(g_state.py_mousepressed);
     Py_XINCREF(g_state.py_mousereleased);
     Py_XINCREF(g_state.py_mousemoved);
+
+    if (g_state.py_conf && g_state.py_conf != Py_None && PyCallable_Check(g_state.py_conf)) {
+        PyObject* t = PyDict_New();
+        PyObject* window = PyDict_New();
+        if (t && window) {
+            PyObject* width = PyLong_FromLong(g_state.width);
+            PyObject* height = PyLong_FromLong(g_state.height);
+            PyObject* title = PyUnicode_FromString(g_state.title.c_str());
+            PyObject* fullscreen = (g_state.window_flags & SDL_WINDOW_FULLSCREEN) ? Py_True : Py_False;
+            PyObject* resizable = (g_state.window_flags & SDL_WINDOW_RESIZABLE) ? Py_True : Py_False;
+            PyObject* vsync = g_state.vsync ? Py_True : Py_False;
+
+            Py_INCREF(fullscreen);
+            Py_INCREF(resizable);
+            Py_INCREF(vsync);
+
+            if (width) PyDict_SetItemString(window, "width", width);
+            if (height) PyDict_SetItemString(window, "height", height);
+            if (title) PyDict_SetItemString(window, "title", title);
+            PyDict_SetItemString(window, "fullscreen", fullscreen);
+            PyDict_SetItemString(window, "resizable", resizable);
+            PyDict_SetItemString(window, "vsync", vsync);
+            PyDict_SetItemString(t, "window", window);
+
+            Py_XDECREF(width);
+            Py_XDECREF(height);
+            Py_XDECREF(title);
+            Py_DECREF(fullscreen);
+            Py_DECREF(resizable);
+            Py_DECREF(vsync);
+
+            PyObject* confArgs = Py_BuildValue("(O)", t);
+            PyObject* confResult = PyObject_CallObject(g_state.py_conf, confArgs);
+            Py_XDECREF(confArgs);
+            if (!confResult) {
+                PyErr_Print();
+            } else {
+                Py_DECREF(confResult);
+            }
+            applyConfTable(t);
+        }
+        Py_XDECREF(window);
+        Py_XDECREF(t);
+    }
     
     std::cout << "Game script loaded: " << filename << std::endl;
     return true;
@@ -1395,17 +1820,67 @@ int runGame() {
     }
     
     Uint64 last_time = SDL_GetTicks();
+    Uint64 fps_last_time = last_time;
+    int fps_frames = 0;
     
     while (g_state.running) {
         Uint64 current_time = SDL_GetTicks();
         double dt = (current_time - last_time) / 1000.0;
         last_time = current_time;
+        g_state.last_dt = dt;
+
+        fps_frames += 1;
+        Uint64 fps_elapsed = current_time - fps_last_time;
+        if (fps_elapsed >= 1000) {
+            g_state.fps = (double)fps_frames * 1000.0 / (double)fps_elapsed;
+            fps_frames = 0;
+            fps_last_time = current_time;
+        }
         
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
                 case SDL_EVENT_QUIT:
                     g_state.running = false;
+                    break;
+
+                case SDL_EVENT_WINDOW_RESIZED: {
+                    int w = (int)event.window.data1;
+                    int h = (int)event.window.data2;
+                    if (w > 0 && h > 0) {
+                        g_state.width = w;
+                        g_state.height = h;
+                        SDL_GL_MakeCurrent(g_state.window, g_state.gl_context);
+                        updateGLViewportAndProjection();
+                        if (!callPythonResizeCallback(w, h)) {
+                            g_state.running = false;
+                        }
+                    }
+                    break;
+                }
+
+                case SDL_EVENT_WINDOW_FOCUS_GAINED:
+                    if (!callPythonBoolCallback(g_state.py_focus, true)) {
+                        g_state.running = false;
+                    }
+                    break;
+
+                case SDL_EVENT_WINDOW_FOCUS_LOST:
+                    if (!callPythonBoolCallback(g_state.py_focus, false)) {
+                        g_state.running = false;
+                    }
+                    break;
+
+                case SDL_EVENT_WINDOW_SHOWN:
+                    if (!callPythonBoolCallback(g_state.py_visible, true)) {
+                        g_state.running = false;
+                    }
+                    break;
+
+                case SDL_EVENT_WINDOW_HIDDEN:
+                    if (!callPythonBoolCallback(g_state.py_visible, false)) {
+                        g_state.running = false;
+                    }
                     break;
                     
                 case SDL_EVENT_KEY_DOWN:
@@ -1423,8 +1898,7 @@ int runGame() {
                 case SDL_EVENT_KEY_UP:
                     if (g_state.py_keyreleased) {
                         const char* key = SDL_GetKeyName(event.key.key);
-                        callPythonKeyCallback(g_state.py_keyreleased, key,
-                                            event.key.scancode, false);
+                        callPythonKeyReleasedCallback(g_state.py_keyreleased, key, event.key.scancode);
                     }
                     break;
                     
@@ -1452,12 +1926,43 @@ int runGame() {
                     
                 case SDL_EVENT_MOUSE_MOTION:
                     if (g_state.py_mousemoved) {
-                        callPythonMouseCallback(g_state.py_mousemoved, 
-                                              (int)event.motion.x, (int)event.motion.y,
-                                              (int)event.motion.xrel, (int)event.motion.yrel,
-                                              false);  // SDL3 doesn't have which field the same way
+                        callPythonMouseMoveCallback(g_state.py_mousemoved,
+                                                  (int)event.motion.x, (int)event.motion.y,
+                                                  (int)event.motion.xrel, (int)event.motion.yrel,
+                                                  false);
                     }
                     break;
+
+                case SDL_EVENT_MOUSE_WHEEL:
+                    if (!callPythonWheelCallback(event.wheel.x, event.wheel.y)) {
+                        g_state.running = false;
+                    }
+                    break;
+
+                case SDL_EVENT_TEXT_INPUT:
+                    if (!callPythonTextCallback(g_state.py_textinput, event.text.text)) {
+                        g_state.running = false;
+                    }
+                    break;
+
+                case SDL_EVENT_DROP_FILE: {
+                    const char* path = event.drop.data;
+                    struct stat buffer;
+                    bool isDir = false;
+                    if (path && stat(path, &buffer) == 0) {
+                        isDir = S_ISDIR(buffer.st_mode);
+                    }
+                    if (isDir) {
+                        if (!callPythonDropCallback(g_state.py_directorydropped, path)) {
+                            g_state.running = false;
+                        }
+                    } else {
+                        if (!callPythonDropCallback(g_state.py_filedropped, path)) {
+                            g_state.running = false;
+                        }
+                    }
+                    break;
+                }
             }
         }
         
@@ -1484,10 +1989,18 @@ int runGame() {
         callPythonCallback(g_state.py_quit);
     }
     
+    Py_XDECREF(g_state.py_conf);
     Py_XDECREF(g_state.py_load);
     Py_XDECREF(g_state.py_update);
     Py_XDECREF(g_state.py_draw);
     Py_XDECREF(g_state.py_quit);
+    Py_XDECREF(g_state.py_focus);
+    Py_XDECREF(g_state.py_resize);
+    Py_XDECREF(g_state.py_textinput);
+    Py_XDECREF(g_state.py_visible);
+    Py_XDECREF(g_state.py_wheelmoved);
+    Py_XDECREF(g_state.py_directorydropped);
+    Py_XDECREF(g_state.py_filedropped);
     Py_XDECREF(g_state.py_keypressed);
     Py_XDECREF(g_state.py_keyreleased);
     Py_XDECREF(g_state.py_mousepressed);
@@ -1507,11 +2020,8 @@ int main(int argc, char* argv[]) {
     
     Py_Initialize();
     
-    // Add current directory to path
-    PyRun_SimpleString(
-        "import sys\n"
-        "sys.path.insert(0, '.')\n"
-    );
+    addToPythonSysPath(getDirectoryFromPath(argv[1]));
+    addToPythonSysPath(".");
     
     // Create and register the love module
     PyObject* love = createLoveModule();

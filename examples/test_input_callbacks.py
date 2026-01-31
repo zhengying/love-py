@@ -7,6 +7,13 @@ Tests all input callbacks:
 - love.mousepressed(x, y, button, istouch, presses)
 - love.mousereleased(x, y, button, istouch, presses)
 - love.mousemoved(x, y, dx, dy, istouch)
+- love.wheelmoved(x, y)
+- love.textinput(text)
+- love.focus(focus)
+- love.visible(visible)
+- love.resize(w, h)
+- love.filedropped(file)
+- love.directorydropped(path)
 
 Run with: ./bin/love examples/test_input_callbacks.py
 Press ESC to quit
@@ -56,6 +63,27 @@ def love_mousemoved(x, y, dx, dy, istouch):
     
     if love_mousemoved.counter % 10 == 0:
         print(f"Mouse moved: x={x}, y={y}, dx={dx}, dy={dy}")
+
+def love_wheelmoved(x, y):
+    print(f"Wheel moved: x={x}, y={y}")
+
+def love_textinput(text):
+    print(f"Text input: {text!r}")
+
+def love_focus(focus):
+    print(f"Focus: {focus}")
+
+def love_visible(visible):
+    print(f"Visible: {visible}")
+
+def love_resize(w, h):
+    print(f"Resize: w={w}, h={h}")
+
+def love_filedropped(file):
+    print(f"File dropped: {file}")
+
+def love_directorydropped(path):
+    print(f"Directory dropped: {path}")
 
 def love_quit():
     print("\nInput test ended!")
