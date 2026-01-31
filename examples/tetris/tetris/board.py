@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import List, Optional, Sequence, Tuple
 
@@ -87,4 +85,3 @@ class Board:
             for x in range(self.width):
                 cells.append((x, y - self.hidden_rows, self.grid[y][x]))
         return cells
-

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Dict, List, Sequence, Tuple
 
@@ -83,4 +81,3 @@ class FallingPiece:
 
     def moved(self, dx: int, dy: int) -> "FallingPiece":
         return FallingPiece(self.kind, self.x + dx, self.y + dy, self.rotation)
-
