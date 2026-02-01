@@ -24,11 +24,11 @@
 ## 🏗️ Correct Architecture (Confirmed Working)
 
 ```
-./love game.py
+./bin/love game.py
     ↓
 C++ Executable (love)
     ↓
-Runs main game loop (SDL2 + OpenGL)
+Runs main game loop (SDL3 + OpenGL)
     ↓
 Calls Python callbacks:
     - love_load()
@@ -36,71 +36,70 @@ Calls Python callbacks:
     - love_draw()
     - love_quit()
     ↓
-Python uses love_py module:
-    - love_py.graphics.rectangle()
-    - love_py.graphics.circle()
-    - love_py.graphics.line()
-    - love_py.graphics.clear()
-    - love_py.graphics.set_color()
+Python uses injected love module:
+    - love.graphics.rectangle()
+    - love.graphics.circle()
+    - love.graphics.line()
+    - love.graphics.clear()
+    - love.graphics.set_color()
 ```
 
 ## 🚀 How to Run
 
 ```bash
 # Visual test (shows shapes for 5 seconds)
-./love examples/visual_test.py
+./bin/love examples/visual_test.py
 
 # Interactive game (move with WASD, click to spawn circles)
-./love examples/simple_game.py
+./bin/love examples/simple_game.py
 ```
 
 ## 📦 Project Files
 
 ```
 love2d_py/
-├── love                      # ⭐ C++ MAIN EXECUTABLE
-├── love/
-│   ├── _love2d_core.so      # C++ extension library
-│   ├── love_py.py           # Python API for games
-│   └── ...                  # Other modules
+├── bin/
+│   ├── love                 # ⭐ C++ MAIN EXECUTABLE
+│   ├── love.app             # ⭐ macOS bundle output
+│   └── python/              # Embedded Python runtime for bin/love (macOS)
 ├── examples/
 │   ├── visual_test.py       # Visual rendering test
 │   └── simple_game.py       # Interactive game
 ├── src/
 │   ├── love.cpp             # Main C++ entry point
 │   └── ...                  # C++ modules
-└── tests/                   # Test suite
+└── python_builtin/          # Bundled Python libraries (copied into embedded runtime)
 ```
 
 ## ✅ Working APIs (L1 Complete)
 
 ### Graphics
-- ✅ `love_py.graphics.clear(r, g, b)`
-- ✅ `love_py.graphics.set_color(r, g, b, a)`
-- ✅ `love_py.graphics.rectangle('fill', x, y, w, h)`
-- ✅ `love_py.graphics.rectangle('line', x, y, w, h)`
-- ✅ `love_py.graphics.circle('fill', x, y, radius)`
-- ✅ `love_py.graphics.circle('line', x, y, radius)`
-- ✅ `love_py.graphics.line(x1, y1, x2, y2)`
-- ✅ `love_py.graphics.push()` / `pop()` / `origin()`
-- ✅ `love_py.graphics.translate(dx, dy)`
-- ✅ `love_py.graphics.rotate(angle)`
-- ✅ `love_py.graphics.scale(sx, sy)`
+- ✅ `love.graphics.clear(r, g, b)`
+- ✅ `love.graphics.set_color(r, g, b, a)`
+- ✅ `love.graphics.rectangle('fill', x, y, w, h)`
+- ✅ `love.graphics.rectangle('line', x, y, w, h)`
+- ✅ `love.graphics.circle('fill', x, y, radius)`
+- ✅ `love.graphics.circle('line', x, y, radius)`
+- ✅ `love.graphics.line(x1, y1, x2, y2)`
+- ✅ `love.graphics.push()` / `pop()` / `origin()`
+- ✅ `love.graphics.translate(dx, dy)`
+- ✅ `love.graphics.rotate(angle)`
+- ✅ `love.graphics.scale(sx, sy)`
 
 ### Images (L2.1 - NEW! 🎉)
-- ✅ `love_py.newImage(filename)` - Load PNG/JPG/BMP
+- ✅ `love.newImage(filename)` - Load PNG/JPG/BMP
 - ✅ `image:getWidth()` / `image:getHeight()`
-- ✅ `love_py.image.draw(image, x, y, r, sx, sy, ox, oy)`
+- ✅ `love.image.draw(image, x, y, r, sx, sy, ox, oy)`
 
 ### Window
-- ✅ `love_py.window.set_title(title)`
-- ✅ `love_py.window.get_dimensions()`
-- ✅ `love_py.window.get_width()` / `get_height()`
+- ✅ `love.window.set_title(title)`
+- ✅ `love.window.get_dimensions()`
+- ✅ `love.window.get_width()` / `get_height()`
 
 ### Input
-- ✅ `love_py.keyboard.is_down('left', 'a', ...)`
-- ✅ `love_py.mouse.get_position()`
-- ✅ `love_py.mouse.is_down(button)`
+- ✅ `love.keyboard.is_down('left', 'a', ...)`
+- ✅ `love.mouse.get_position()`
+- ✅ `love.mouse.is_down(button)`
 
 ### Game Loop
 - ✅ `love_load()` - Called once at startup

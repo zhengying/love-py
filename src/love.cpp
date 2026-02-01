@@ -10,15 +10,20 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <SDL3/SDL.h>
-#include <OpenGL/gl.h>
+#include <SDL3/SDL_opengl.h>
 #include <iostream>
 #include <string>
 #include <cstring>
+#include <cstdlib>
 #include <cmath>
 #include <sys/stat.h>
 #if defined(_WIN32)
     #include <direct.h>
     #include <windows.h>
+#elif defined(__APPLE__)
+    #include <dirent.h>
+    #include <unistd.h>
+    #include <mach-o/dyld.h>
 #else
     #include <dirent.h>
     #include <unistd.h>
@@ -114,6 +119,262 @@ static std::string getDirectoryFromPath(const std::string& path) {
         return "/";
     }
     return path.substr(0, pos);
+}
+
+#if defined(_WIN32)
+static std::wstring getExecutableDirectoryW() {
+    wchar_t buffer[MAX_PATH];
+    DWORD len = GetModuleFileNameW(nullptr, buffer, MAX_PATH);
+    std::wstring full(buffer, len);
+    size_t pos = full.find_last_of(L"\\/");
+    if (pos == std::wstring::npos) return L".";
+    return full.substr(0, pos);
+}
+
+static std::string wideToUtf8(const std::wstring& w) {
+    if (w.empty()) return {};
+    int size = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), nullptr, 0, nullptr, nullptr);
+    if (size <= 0) return {};
+    std::string out((size_t)size, '\0');
+    WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), out.data(), size, nullptr, nullptr);
+    return out;
+}
+
+static bool pathIsDirectoryW(const std::wstring& path) {
+    DWORD attr = GetFileAttributesW(path.c_str());
+    return attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY);
+}
+
+static bool pathIsFileW(const std::wstring& path) {
+    DWORD attr = GetFileAttributesW(path.c_str());
+    return attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY);
+}
+
+static void initializePythonFromEmbeddedRuntimeIfPresent() {
+    const char* overrideHome = std::getenv("LOVE_PYTHON_HOME");
+    if (overrideHome && *overrideHome) {
+        int wsize = MultiByteToWideChar(CP_UTF8, 0, overrideHome, -1, nullptr, 0);
+        if (wsize > 0) {
+            std::wstring pythonHome((size_t)wsize - 1, L'\0');
+            MultiByteToWideChar(CP_UTF8, 0, overrideHome, -1, pythonHome.data(), wsize);
+            if (pathIsDirectoryW(pythonHome)) {
+                PyStatus status;
+                PyConfig config;
+                PyConfig_InitPythonConfig(&config);
+                config.isolated = 1;
+                config.use_environment = 0;
+                config.site_import = 0;
+
+                status = PyConfig_SetString(&config, &config.home, pythonHome.c_str());
+                if (PyStatus_Exception(status)) {
+                    PyConfig_Clear(&config);
+                    Py_ExitStatusException(status);
+                    return;
+                }
+
+                std::wstring exeDir = getExecutableDirectoryW();
+                std::wstring programName = exeDir + L"\\love.exe";
+                status = PyConfig_SetString(&config, &config.program_name, programName.c_str());
+                if (PyStatus_Exception(status)) {
+                    PyConfig_Clear(&config);
+                    Py_ExitStatusException(status);
+                    return;
+                }
+
+                status = Py_InitializeFromConfig(&config);
+                PyConfig_Clear(&config);
+                if (PyStatus_Exception(status)) {
+                    Py_ExitStatusException(status);
+                    return;
+                }
+
+                addToPythonSysPath(wideToUtf8(pythonHome));
+                return;
+            }
+        }
+    }
+
+    std::wstring exeDir = getExecutableDirectoryW();
+    std::wstring pythonHome = exeDir + L"\\python";
+    if (!pathIsDirectoryW(pythonHome)) {
+        Py_Initialize();
+        return;
+    }
+
+    PyStatus status;
+    PyConfig config;
+    PyConfig_InitPythonConfig(&config);
+    config.isolated = 1;
+    config.use_environment = 0;
+    config.site_import = 0;
+
+    status = PyConfig_SetString(&config, &config.home, pythonHome.c_str());
+    if (PyStatus_Exception(status)) {
+        PyConfig_Clear(&config);
+        Py_ExitStatusException(status);
+        return;
+    }
+
+    std::wstring programName = exeDir + L"\\love.exe";
+    status = PyConfig_SetString(&config, &config.program_name, programName.c_str());
+    if (PyStatus_Exception(status)) {
+        PyConfig_Clear(&config);
+        Py_ExitStatusException(status);
+        return;
+    }
+
+    status = Py_InitializeFromConfig(&config);
+    PyConfig_Clear(&config);
+    if (PyStatus_Exception(status)) {
+        Py_ExitStatusException(status);
+        return;
+    }
+
+    addToPythonSysPath(wideToUtf8(pythonHome));
+}
+#elif defined(__APPLE__)
+static bool pathIsDirectory(const std::string& path) {
+    struct stat st;
+    return stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+static bool pathIsFile(const std::string& path) {
+    struct stat st;
+    return stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode);
+}
+
+static std::string getExecutableDirectoryUtf8() {
+    uint32_t size = 0;
+    _NSGetExecutablePath(nullptr, &size);
+    std::string tmp(size + 1, '\0');
+    if (_NSGetExecutablePath(tmp.data(), &size) != 0) {
+        return ".";
+    }
+    tmp.resize(std::strlen(tmp.c_str()));
+
+    char resolved[4096];
+    if (realpath(tmp.c_str(), resolved)) {
+        return getDirectoryFromPath(std::string(resolved));
+    }
+    return getDirectoryFromPath(tmp);
+}
+
+static std::string getBundleResourcesDirectoryUtf8() {
+    return getExecutableDirectoryUtf8() + "/../Resources";
+}
+
+static std::string getDefaultPythonHomeUtf8() {
+    std::string exeDir = getExecutableDirectoryUtf8();
+
+    std::string bundlePythonHome = exeDir + "/../Resources/python";
+    std::string bundlePythonHomeNested = bundlePythonHome + "/python";
+    if (pathIsDirectory(bundlePythonHomeNested)) {
+        return bundlePythonHomeNested;
+    }
+    if (pathIsDirectory(bundlePythonHome)) {
+        return bundlePythonHome;
+    }
+
+    std::string adjacentPythonHome = exeDir + "/python";
+    std::string adjacentPythonHomeNested = adjacentPythonHome + "/python";
+    if (pathIsDirectory(adjacentPythonHomeNested)) {
+        return adjacentPythonHomeNested;
+    }
+
+    return adjacentPythonHome;
+}
+
+static void initializePythonFromEmbeddedRuntimeIfPresent(const char* argv0) {
+    const char* overrideHome = std::getenv("LOVE_PYTHON_HOME");
+    std::string pythonHome;
+    if (overrideHome && *overrideHome) {
+        pythonHome = overrideHome;
+    } else {
+        pythonHome = getDefaultPythonHomeUtf8();
+    }
+
+    if (!pythonHome.empty() && pathIsDirectory(pythonHome)) {
+        PyStatus status;
+        PyConfig config;
+        PyConfig_InitPythonConfig(&config);
+        config.isolated = 1;
+        config.use_environment = 0;
+        config.site_import = 0;
+
+        status = PyConfig_SetBytesString(&config, &config.home, pythonHome.c_str());
+        if (PyStatus_Exception(status)) {
+            PyConfig_Clear(&config);
+            Py_ExitStatusException(status);
+            return;
+        }
+
+        status = PyConfig_SetBytesString(&config, &config.program_name, argv0 ? argv0 : "love");
+        if (PyStatus_Exception(status)) {
+            PyConfig_Clear(&config);
+            Py_ExitStatusException(status);
+            return;
+        }
+
+        status = Py_InitializeFromConfig(&config);
+        PyConfig_Clear(&config);
+        if (PyStatus_Exception(status)) {
+            Py_ExitStatusException(status);
+            return;
+        }
+
+        addToPythonSysPath(pythonHome);
+        std::string builtinPath = pythonHome + "/builtin";
+        if (pathIsDirectory(builtinPath)) {
+            addToPythonSysPath(builtinPath);
+        }
+        return;
+    }
+
+    Py_Initialize();
+}
+#endif
+
+static bool argIsDirectory(const std::string& path) {
+#if defined(_WIN32)
+    DWORD attr = GetFileAttributesA(path.c_str());
+    return attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY);
+#else
+    struct stat st;
+    return stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
+#endif
+}
+
+static bool argIsFile(const std::string& path) {
+#if defined(_WIN32)
+    DWORD attr = GetFileAttributesA(path.c_str());
+    return attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY);
+#else
+    struct stat st;
+    return stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode);
+#endif
+}
+
+static bool setWorkingDirectory(const std::string& path) {
+#if defined(_WIN32)
+    return _chdir(path.c_str()) == 0;
+#else
+    return chdir(path.c_str()) == 0;
+#endif
+}
+
+static std::string joinPath(const std::string& dir, const std::string& leaf) {
+    if (dir.empty()) {
+        return leaf;
+    }
+    char last = dir.back();
+    if (last == '/' || last == '\\') {
+        return dir + leaf;
+    }
+#if defined(_WIN32)
+    return dir + "\\" + leaf;
+#else
+    return dir + "/" + leaf;
+#endif
 }
 
 // ============================================================================
@@ -2012,15 +2273,60 @@ int runGame() {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <game.py>" << std::endl;
+#if defined(_WIN32)
+    initializePythonFromEmbeddedRuntimeIfPresent();
+#elif defined(__APPLE__)
+    initializePythonFromEmbeddedRuntimeIfPresent(argv[0]);
+#else
+    Py_Initialize();
+#endif
+    
+    std::string gamePath;
+    std::string launchArg;
+    if (argc >= 2) {
+        launchArg = argv[1];
+    }
+
+#if defined(__APPLE__)
+    if (launchArg.empty()) {
+        std::string resourcesDir = getBundleResourcesDirectoryUtf8();
+        std::string defaultGame = resourcesDir + "/resources/no_game.py";
+        if (!pathIsFile(defaultGame)) {
+            std::cerr << "Usage: " << argv[0] << " <game.py|game_dir>" << std::endl;
+            std::cerr << "Example: " << argv[0] << " examples/basic_game.py" << std::endl;
+            return 1;
+        }
+        if (pathIsDirectory(resourcesDir)) {
+            chdir(resourcesDir.c_str());
+        }
+        launchArg = defaultGame;
+    }
+#endif
+
+    if (launchArg.empty()) {
+        std::cerr << "Usage: " << argv[0] << " <game.py|game_dir>" << std::endl;
         std::cerr << "Example: " << argv[0] << " examples/basic_game.py" << std::endl;
         return 1;
     }
-    
-    Py_Initialize();
-    
-    addToPythonSysPath(getDirectoryFromPath(argv[1]));
+
+    if (argIsDirectory(launchArg)) {
+        std::string candidate = joinPath(launchArg, "main.py");
+        if (!argIsFile(candidate)) {
+            std::cerr << "Cannot find main.py in directory: " << launchArg << std::endl;
+            std::cerr << "Usage: " << argv[0] << " <game.py|game_dir>" << std::endl;
+            std::cerr << "Example: " << argv[0] << " examples/basic_game.py" << std::endl;
+            return 1;
+        }
+        if (setWorkingDirectory(launchArg)) {
+            gamePath = "main.py";
+        } else {
+            gamePath = candidate;
+        }
+    } else {
+        gamePath = launchArg;
+    }
+
+    addToPythonSysPath(getDirectoryFromPath(gamePath));
     addToPythonSysPath(".");
     
     // Create and register the love module
@@ -2033,7 +2339,7 @@ int main(int argc, char* argv[]) {
     PyObject* sys_modules = PyImport_GetModuleDict();
     PyDict_SetItemString(sys_modules, "love", love);
     
-    if (!loadGameScript(argv[1])) {
+    if (!loadGameScript(gamePath.c_str())) {
         Py_Finalize();
         return 1;
     }

@@ -1,0 +1,99 @@
+name: windows-build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare vendored Python runtime
+        run: |
+          $zip = ".\external\deps\python\windows-x64\python-embed-amd64.zip"
+          if (!(Test-Path -Path $zip)) { $zip = ".\third_party\deps\python\windows-x64\python-embed-amd64.zip" }
+          if (!(Test-Path -Path $zip)) { throw "Missing vendored Python: $zip" }
+          if (Test-Path -Path ".\dist") { Remove-Item -Recurse -Force ".\dist" }
+          New-Item -ItemType Directory -Path ".\dist\python" | Out-Null
+          Expand-Archive -Force -Path $zip -DestinationPath ".\dist\python"
+
+      - name: Prepare vendored native dependencies
+        run: |
+          $zip = ".\external\deps\windows-x64\vcpkg-installed-x64-windows.zip"
+          if (!(Test-Path -Path $zip)) { $zip = ".\third_party\deps\windows-x64\vcpkg-installed-x64-windows.zip" }
+          if (!(Test-Path -Path $zip)) { throw "Missing vendored native deps: $zip" }
+          if (Test-Path -Path ".\deps") { Remove-Item -Recurse -Force ".\deps" }
+          New-Item -ItemType Directory -Path ".\deps\vcpkg" | Out-Null
+          Expand-Archive -Force -Path $zip -DestinationPath ".\deps\vcpkg"
+
+      - name: Configure
+        run: |
+          $prefix = "${{ github.workspace }}\deps\vcpkg\installed\x64-windows"
+          if (!(Test-Path -Path $prefix)) { throw "Expected CMake prefix not found: $prefix" }
+          cmake -S . -B build -G "Ninja" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$prefix" `
+            -DPython3_EXECUTABLE=python
+
+      - name: Build
+        run: |
+          cmake --build build --config Release
+
+      - name: Package runtime
+        run: |
+          if (!(Test-Path -Path ".\bin\love.exe")) { throw "bin\love.exe not found" }
+          Copy-Item -Force ".\bin\love.exe" ".\dist\love.exe"
+          Copy-Item -Force ".\deps\vcpkg\installed\x64-windows\bin\*.dll" ".\dist\" -ErrorAction SilentlyContinue
+          Copy-Item -Force ".\dist\python\python*.dll" ".\dist\" -ErrorAction SilentlyContinue
+          Copy-Item -Force ".\dist\python\vcruntime*.dll" ".\dist\" -ErrorAction SilentlyContinue
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: love2d_py-windows-x64
+          path: |
+            dist/**
+
+  macos-bundle:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: |
+          cmake --build build --config Release --target love_app
+
+      - name: Package bundle
+        run: |
+          rm -rf dist
+          mkdir -p dist
+          if [ -d "./bin/love.app" ]; then
+            ditto "./bin/love.app" "./dist/love.app"
+          else
+            APP_PATH="$(find build -maxdepth 4 -name 'love.app' -type d | head -n 1)"
+            if [ -z "$APP_PATH" ]; then
+              echo "love.app not found"
+              exit 1
+            fi
+            ditto "$APP_PATH" "./dist/love.app"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: love2d_py-macos-bundle
+          path: |
+            dist/**

@@ -13,7 +13,7 @@ This project follows the same architecture as the original LÖVE2D:
 │                                                              │
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │  src/love.cpp - Main Entry Point                       │  │
-│  │  • Runs SDL2 main loop                                 │  │
+│  │  • Runs SDL3 main loop                                 │  │
 │  │  • Handles events (keyboard, mouse, quit)              │  │
 │  │  • Manages OpenGL context                              │  │
 │  │  • Calls Python callbacks                              │  │
@@ -37,22 +37,6 @@ This project follows the same architecture as the original LÖVE2D:
 │  def love_keypressed(key, scancode, isrepeat)               │
 │  def love_mousepressed(x, y, button, istouch, presses)      │
 └─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│           C++ Extension Module (_love2d_core.so)             │
-│              Built via pybind11 + CMake                      │
-│                                                              │
-│  • love2d_bindings.cpp - Module initialization              │
-│  • graphics_module.cpp - OpenGL rendering                   │
-│  • window_module.cpp - SDL2 window management               │
-│  • event_module.cpp - SDL2 event queue                      │
-│  • timer_module.cpp - SDL2 timing                           │
-│  • keyboard_module.cpp - SDL2 keyboard                      │
-│  • mouse_module.cpp - SDL2 mouse                            │
-│  • image_module.cpp - stb_image + OpenGL textures           │
-│  • audio_module.cpp - Placeholder                           │
-│  • filesystem_module.cpp - C++17 filesystem                 │
-└─────────────────────────────────────────────────────────────┘
 ```
 
 **Key Design Decision:** C++ owns the main loop (not Python), matching the original LÖVE2D design for proper frame timing.
@@ -61,31 +45,100 @@ This project follows the same architecture as the original LÖVE2D:
 
 ### Prerequisites
 
-- Python 3.8+
 - CMake 3.15+
-- SDL2 development libraries
+- A C++17 compatible compiler
 - OpenGL development libraries
-- C++17 compatible compiler
+
+Platform notes:
+- macOS: the build uses the vendored embedded Python archive under `external/deps/python/*`, so a system Python/pip installation is not required.
+- Linux/Windows: builds currently rely on a system Python (headers + library) to embed Python.
+
+## Packaging & Deployment
+
+This repository builds two different macOS outputs:
+- `bin/love`: a command-line executable
+- `bin/love.app`: a macOS `.app` bundle with embedded runtime dependencies
+
+### Launching
+
+- Run a script file:
+  - `./bin/love path/to/game.py`
+  - `./bin/love.app/Contents/MacOS/love path/to/game.py`
+- Run a directory (auto-loads `main.py`):
+  - `./bin/love path/to/game_dir`
+  - `./bin/love.app/Contents/MacOS/love path/to/game_dir`
+  - The launcher will look for `path/to/game_dir/main.py`, then `chdir` into `game_dir` so relative assets work.
+- Launch with no arguments (macOS `.app` only):
+  - Runs the bundled welcome script [no_game.py](file:///Users/zhengying/Documents/labs/love-python/love2d_py/resources/no_game.py)
+
+### macOS `.app` bundle
+
+- Build target:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release`
+  - `cmake --build build --target love_app`
+- Output:
+  - `bin/love.app`
+- Bundle layout (key parts):
+  - `Contents/MacOS/love`: the executable
+  - `Contents/Frameworks/SDL3.framework`: SDL3 runtime
+  - `Contents/Frameworks/freetype.framework`: FreeType runtime
+  - `Contents/Resources/python`: embedded Python runtime (copied from the vendored archive)
+  - `Contents/Resources/resources`: bundled game resources (includes `font.ttf` and `no_game.py`)
+- Python runtime selection on macOS:
+  - At runtime, [love.cpp](file:///Users/zhengying/Documents/labs/love-python/love2d_py/src/love.cpp) prefers `Contents/Resources/python` as `PyConfig.home`.
+  - You can override with `LOVE_PYTHON_HOME=/path/to/python` if needed.
+- Dynamic linking:
+  - The bundle uses `@rpath` for `SDL3.framework`, `freetype.framework`, and `libpython3.11.dylib`.
+  - `rpath` entries are set to:
+    - `@executable_path/../Frameworks`
+    - `@executable_path/../Resources/python/lib`
+
+### Vendored Python (macOS)
+
+- Archives live under:
+  - `external/deps/python/macos-arm64/python-standalone.tar.zst`
+  - `external/deps/python/macos-x86_64/python-standalone.tar.zst`
+- The build extracts the archive into `build*/embedded-python/python` and then copies it into the `.app`.
+- The build also copies the embedded runtime to `bin/python/` so `bin/love` can run without a system Python.
+- If you update the archive:
+  - Keep the `python/` top-level directory inside the tarball (the build expects this layout).
+  - Ensure it contains `python/lib/libpython*.dylib` and `python/include/python*/Python.h`.
+
+### Builtin Python libraries (bundled with the app)
+
+This project supports bundling your own Python libraries (and stubs for IDE completion) into the embedded runtime.
+
+- Source directory (in repo): `python_builtin/`
+- Destination (macOS):
+  - `bin/love.app/Contents/Resources/python/builtin/`
+  - `bin/python/builtin/` (for `bin/love`)
+- Runtime behavior:
+  - On startup, the launcher adds `<pythonHome>/builtin` to `sys.path`, so game scripts can `import` those packages.
+
+### CI artifacts
+
+- Windows and macOS build artifacts are produced by the workflow:
+  - [.github/workflows/windows-build.yml](.github/workflows/windows-build.yml)
+- Artifact names:
+  - `love2d_py-windows-x64`: contains a `dist/` directory with `love.exe`, `python*.dll`, and vendored DLLs
+  - `love2d_py-macos-bundle`: contains `dist/love.app`
 
 ### macOS
 
 ```bash
 # Install dependencies
-brew install cmake python sdl2
+brew install cmake
 
 # Clone and build
 cd love2d_py
 
-# Option 1: Using pip (recommended)
-pip install .
-
-# Option 2: Using CMake directly
+# Using CMake directly
 mkdir -p build && cd build
 cmake ..
 make -j4
 
 # The executable will be at bin/love
-# The Python extension will be at love/_love2d_core.so
+# The app bundle will be at bin/love.app
 ```
 
 ### Linux (Ubuntu/Debian)

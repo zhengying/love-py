@@ -19,59 +19,53 @@
 - **C++ `love` executable** is the entry point
 - C++ runs the main game loop (proper frame timing)
 - **Python provides callbacks** (love_load, love_update, love_draw)
-- Python imports `love_py` for graphics/window functions
+- Game scripts import `love` (the module is created by the executable via Python C-API)
 
 ### Architecture Components
 
 1. **C++ Main Executable** (`love`)
    - Entry point: `./love game.py`
-   - Runs SDL2 + OpenGL main loop
+   - Runs SDL3 + OpenGL main loop
    - Handles all events (keyboard, mouse, quit)
    - Calls Python callbacks at appropriate times
    - Proper frame timing and vsync
 
 2. **Python Game Script** (`game.py`)
    ```python
-   import love_py
+   import love
    
    def love_load():
        """Called once at startup"""
-       love_py.window.set_title("My Game")
+       love.window.set_title("My Game")
    
    def love_update(dt):
        """Called every frame with delta time"""
-       if love_py.keyboard.is_down('escape'):
+       if love.keyboard.is_down('escape'):
            pass  # C++ handles ESC automatically
    
    def love_draw():
        """Called every frame to render"""
-       love_py.graphics.clear(0.2, 0.2, 0.2)
-       love_py.graphics.set_color(1, 0, 0)
-       love_py.graphics.rectangle('fill', 100, 100, 50, 50)
+       love.graphics.clear(0.2, 0.2, 0.2)
+       love.graphics.set_color(1, 0, 0)
+       love.graphics.rectangle('fill', 100, 100, 50, 50)
    ```
 
-3. **Python Library Module** (`love_py`)
-   - Provides graphics, window, input functions
-   - Wraps the C++ `_love2d_core` extension
-   - Game scripts import this to access LOVE API
-
-4. **C++ Extension Library** (`_love2d_core.so`)
-   - pybind11 bindings for SDL2 + OpenGL
-   - Used by both the executable and Python module
+3. **Injected Python module** (`love`)
+   - Created and registered by the executable at runtime (`sys.modules["love"] = ...`)
+   - Provides graphics, window, input, timer, filesystem APIs
 
 ### Files Structure
 
 ```
 love2d_py/
-├── love                    # ⭐ C++ MAIN EXECUTABLE (44KB)
+├── bin/
+│   ├── love                # ⭐ C++ MAIN EXECUTABLE
+│   ├── love.app            # ⭐ macOS bundle output
+│   └── python/             # Embedded Python runtime for bin/love (macOS)
 ├── src/
 │   ├── love.cpp           # ⭐ Main entry point (C++ game loop)
-│   ├── love2d_bindings.cpp # Python extension module
 │   └── ...                 # Other C++ modules
-├── love/
-│   ├── love_py.py         # ⭐ Python API module for game scripts
-│   ├── _love2d_core.so    # C++ extension library (843KB)
-│   └── ...                 # Other Python modules
+├── python_builtin/         # Bundled Python libraries (copied into embedded runtime)
 └── examples/
     └── simple_game.py      # Example using new architecture
 ```
@@ -100,14 +94,14 @@ The C++ executable will:
 Create `my_game.py`:
 
 ```python
-import love_py
+import love
 import random
 
 circles = []
 
 def love_load():
-    love_py.window.set_title("My Awesome Game")
-    love_py.graphics.set_background_color(0.1, 0.1, 0.2)
+    love.window.set_title("My Awesome Game")
+    love.graphics.set_background_color(0.1, 0.1, 0.2)
 
 def love_update(dt):
     # Spawn random circles
@@ -120,11 +114,11 @@ def love_update(dt):
         })
 
 def love_draw():
-    love_py.graphics.clear(0.1, 0.1, 0.2)
+    love.graphics.clear(0.1, 0.1, 0.2)
     
     for circle in circles:
-        love_py.graphics.set_color(*circle['color'])
-        love_py.graphics.circle('fill', circle['x'], circle['y'], circle['r'])
+        love.graphics.set_color(*circle['color'])
+        love.graphics.circle('fill', circle['x'], circle['y'], circle['r'])
 
 def love_mousepressed(x, y, button, istouch, presses):
     circles.append({

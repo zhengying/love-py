@@ -44,6 +44,11 @@ compile_commands.json
 CTestTestfile.cmake
 _deps/
 build/
+build_*/
+build-*/
+
+# Vendored dependencies (kept in workspace, not committed)
+external/
 
 # Compiled extensions
 *.dylib
@@ -73,6 +78,7 @@ docs/_build/
 assets/
 
 # Build artifacts
+bin/
 *.o
 *.obj
 *.a
