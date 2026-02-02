@@ -1,129 +1,169 @@
-# 🎮 LOVE2D Python - NOW WORKING!
+# LOVE2D Python - 当前实现状态
 
-## ✅ VISUAL CONFIRMATION - Game Renders Graphics!
+更新时间：2026-02-02
 
-**The C++ executable successfully draws shapes to the screen!**
+## 目标与参考
 
-### Test Results:
-```
-✅ love_load() called - Setting up...
-✅ love_draw() called - Frame rendered
-✅ love_draw() called - Frame rendered  
-✅ love_draw() called - Frame rendered
-✅ love_quit() called - Test complete!
-🎉 Drawing test successful - shapes rendered to screen
-```
+本项目目标是实现 LÖVE 11.5 的 Python 版本 API。
 
-### What's Rendering:
-- ✅ Red rectangle (center)
-- ✅ Green circle (left)
-- ✅ Blue circle (right)
-- ✅ White line (connecting circles)
-- ✅ Dark background
+API 参考位于：
+- `references/love-api-orignal_11_5/`：官方 LÖVE 11.5 API 的 Lua 描述（按模块拆分）
+- `references/love_api_py/`：API 数据与检查工具（Python）
 
-## 🏗️ Correct Architecture (Confirmed Working)
+实现规划/勾选表位于：
+- `API_IMPLEMENTATION_PLAN.md`
 
-```
-./bin/love game.py
-    ↓
-C++ Executable (love)
-    ↓
-Runs main game loop (SDL3 + OpenGL)
-    ↓
-Calls Python callbacks:
-    - love_load()
-    - love_update(dt)
-    - love_draw()
-    - love_quit()
-    ↓
-Python uses injected love module:
-    - love.graphics.rectangle()
-    - love.graphics.circle()
-    - love.graphics.line()
-    - love.graphics.clear()
-    - love.graphics.set_color()
-```
+## 当前运行架构（真实生效路径）
 
-## 🚀 How to Run
+当前可执行文件 `bin/love` 与 `bin/love.app` 走的是“嵌入 Python + 注入 love 模块”的路径：
+
+- 主入口：`src/love.cpp`
+- 启动时会创建并注入 `love` 模块（包含若干子模块）
+- 你的游戏脚本需要定义回调函数（见下方“回调”）
+
+说明：`src/love2d_bindings.cpp` 以及 `src/*_module.cpp` 里的 pybind11 绑定目前并不是 `bin/love` 的主要 API 来源；当前对外暴露的 `love.*` 以 `src/love.cpp` 内的模块注入为准。
+
+## 构建与打包（macOS）
+
+推荐用脚本：
 
 ```bash
-# Visual test (shows shapes for 5 seconds)
-./bin/love examples/visual_test.py
-
-# Interactive game (move with WASD, click to spawn circles)
-./bin/love examples/simple_game.py
+./mac_build.sh love   # 生成 bin/love
+./mac_build.sh app    # 生成 bin/love.app
+./mac_build.sh all    # 两者都生成
 ```
 
-## 📦 Project Files
+对应的 CMake targets：
+- `love`
+- `love_app`
 
-```
-love2d_py/
-├── bin/
-│   ├── love                 # ⭐ C++ MAIN EXECUTABLE
-│   ├── love.app             # ⭐ macOS bundle output
-│   └── python/              # Embedded Python runtime for bin/love (macOS)
-├── examples/
-│   ├── visual_test.py       # Visual rendering test
-│   └── simple_game.py       # Interactive game
-├── src/
-│   ├── love.cpp             # Main C++ entry point
-│   └── ...                  # C++ modules
-└── python_builtin/          # Bundled Python libraries (copied into embedded runtime)
+## 运行方式
+
+```bash
+./bin/love examples/test_simple.py
+
+./bin/love.app/Contents/MacOS/love examples/test_simple.py
 ```
 
-## ✅ Working APIs (L1 Complete)
+## 已实现模块与关键 API（以 src/love.cpp 为准）
 
-### Graphics
-- ✅ `love.graphics.clear(r, g, b)`
-- ✅ `love.graphics.set_color(r, g, b, a)`
-- ✅ `love.graphics.rectangle('fill', x, y, w, h)`
-- ✅ `love.graphics.rectangle('line', x, y, w, h)`
-- ✅ `love.graphics.circle('fill', x, y, radius)`
-- ✅ `love.graphics.circle('line', x, y, radius)`
-- ✅ `love.graphics.line(x1, y1, x2, y2)`
-- ✅ `love.graphics.push()` / `pop()` / `origin()`
-- ✅ `love.graphics.translate(dx, dy)`
-- ✅ `love.graphics.rotate(angle)`
-- ✅ `love.graphics.scale(sx, sy)`
+当前注入的模块列表：
+- `love`
+- `love.graphics`
+- `love.window`
+- `love.timer`
+- `love.keyboard`
+- `love.mouse`
+- `love.event`
+- `love.filesystem`
+- `love.image`
+- `love.font`
 
-### Images (L2.1 - NEW! 🎉)
-- ✅ `love.newImage(filename)` - Load PNG/JPG/BMP
-- ✅ `image:getWidth()` / `image:getHeight()`
-- ✅ `love.image.draw(image, x, y, r, sx, sy, ox, oy)`
+### love（全局）
 
-### Window
-- ✅ `love.window.set_title(title)`
-- ✅ `love.window.get_dimensions()`
-- ✅ `love.window.get_width()` / `get_height()`
+- `love.getVersion() -> (major, minor, revision, codename)`
+- `love.setDeprecationOutput(enabled: bool)`
+- `love.hasDeprecationOutput() -> bool`
+- `love.isVersionCompatible(version: str) -> bool`
 
-### Input
-- ✅ `love.keyboard.is_down('left', 'a', ...)`
-- ✅ `love.mouse.get_position()`
-- ✅ `love.mouse.is_down(button)`
+### love.window
 
-### Game Loop
-- ✅ `love_load()` - Called once at startup
-- ✅ `love_update(dt)` - Called every frame with delta time
-- ✅ `love_draw()` - Called every frame to render
-- ✅ `love_quit()` - Called when game ends
+- `love.window.setMode(width, height, flags: dict = {}) -> bool`
+- `love.window.getMode() -> (width, height, flags)`
+- `love.window.setTitle(title: str)`
+- `love.window.close()`
+- `love.window.getWidth() / getHeight() / getDimensions()`
 
-## 🎯 Next Steps
+说明：`flags` 当前只解析 `fullscreen/resizable/vsync`，并且返回的 flags 也只覆盖上述字段。
 
-Now that drawing works, let's implement **L2 features**:
+### love.timer
 
-1. **Images** (L2.1) 📸
-   - `love_py.graphics.new_image(filename)`
-   - `love_py.graphics.draw(image, x, y)`
-   - Load PNG/JPG files
+- `love.timer.getTime() -> float`
+- `love.timer.getDelta() -> float`
+- `love.timer.getFPS() -> float`
+- `love.timer.sleep(seconds: float)`
 
-2. **Fonts/Text** (L2.2) ✍️
-   - `love_py.graphics.new_font(filename, size)`
-   - `love_py.graphics.print(text, x, y)`
-   - TrueType font rendering
+### love.keyboard
 
-3. **Audio** (L2.3) 🔊
-   - `love_py.audio.new_source(filename)`
-   - `source:play()` / `stop()` / `pause()`
-   - WAV/MP3 playback
+- `love.keyboard.isDown(key1: str, key2: str, ...) -> bool`
 
-Which L2 feature would you like to implement first? 🚀
+说明：当前 `key` 使用 `SDL_GetScancodeFromName` 解析（更接近 scancode 名称），与 LÖVE 的 KeyConstant/Scancode 体系仍有差距。
+
+### love.mouse
+
+- `love.mouse.getPosition() -> (x, y)`
+- `love.mouse.getX() / getY()`
+- `love.mouse.isDown(button: int) -> bool`
+
+### love.event
+
+- `love.event.quit()`
+
+说明：目前没有 `pump/poll/push` 等完整事件队列 API（但引擎内部会处理 SDL 事件并触发 Python 回调，见下方“回调”）。
+
+### love.graphics（2D 最小子集 + 图片/字体绘制）
+
+- 基础图元：`clear / setColor / getColor / setBackgroundColor / getBackgroundColor / rectangle / circle / line`
+- 变换：`push / pop / origin / translate / rotate / scale`
+- 尺寸：`getWidth / getHeight / getDimensions`
+- 图片绘制：`drawImage(image, x=0, y=0, r=0, sx=1, sy=1, ox=0, oy=0)`
+- 字体与文本：`newFont(filename, size=12)`, `setFont(font)`, `getFont()`, `print(text, x, y, r=0, sx=1, sy=1)`
+
+说明：`print` 依赖当前字体；如果没有显式设置字体，需要先调用 `love.graphics.getFont()` 触发默认字体加载。
+
+### love.image / love.font
+
+- `love.image.newImage(filename) -> Image`
+- `love.font.newFont(filename, size=12) -> Font`
+
+说明：与原版 LÖVE 的 `love.graphics.newImage()` / `love.graphics.draw()` 命名不一致，目前是 `love.image.newImage()` + `love.graphics.drawImage()` 组合。
+
+### love.filesystem（最小子集）
+
+- `read(filename) -> str`
+- `write(filename, data: bytes) -> bool`
+- `exists(path) -> bool`
+- `isFile(path) -> bool`
+- `isDirectory(path) -> bool`
+- `createDirectory(name) -> bool`
+- `getWorkingDirectory() -> str`
+- `getDirectoryItems(dir) -> list[str]`
+
+## 回调支持（脚本入口）
+
+脚本中可定义以下函数（存在则被引擎调用）：
+
+- `love_load()`
+- `love_update(dt)`
+- `love_draw()`
+- `love_quit()`
+
+输入回调（当前引擎事件循环会调用）：
+- `love_keypressed(key, scancode, isrepeat)`
+- `love_keyreleased(key, scancode)`
+- `love_mousepressed(x, y, button, istouch, presses)`
+- `love_mousereleased(x, y, button, istouch, presses)`
+- `love_mousemoved(x, y, dx, dy, istouch)`
+
+## 重要缺失（高优先级）
+
+以下模块尚未进入当前注入的 `love` API（即：脚本里 import/调用不到对应模块）：
+
+- `love.audio`（目前是最大缺口之一）
+- `love.system`
+- `love.math`
+- `love.joystick` / `love.touch`
+- `love.thread`
+- `love.data`
+- `love.physics`
+- `love.sound`
+- `love.video`
+
+图形高级能力缺失：
+- Canvas / Shader / Mesh / SpriteBatch / Stencil / Scissor 等都未实现
+- 形状类（ellipse/arc/polygon/points）、混合模式、线宽等状态也未覆盖
+
+## 仓库约定（开发时）
+
+- `bin/` 是构建产物目录，不应提交
+- `external/` 是 vendored 依赖目录，仅保留在工作区，不应提交
