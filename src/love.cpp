@@ -73,6 +73,7 @@ struct GameState {
     // Font state
     PyObject* current_font = nullptr;
     PyObject* default_font = nullptr;  // Cached default font
+    PyObject* current_canvas = nullptr;
 
     double last_dt = 0.0;
     double fps = 0.0;
@@ -81,6 +82,23 @@ struct GameState {
 static GameState g_state;
 static bool g_deprecation_output = false;
 
+static void (*g_glGenFramebuffers)(GLsizei, GLuint*) = nullptr;
+static void (*g_glDeleteFramebuffers)(GLsizei, const GLuint*) = nullptr;
+static void (*g_glBindFramebuffer)(GLenum, GLuint) = nullptr;
+static void (*g_glFramebufferTexture2D)(GLenum, GLenum, GLenum, GLuint, GLint) = nullptr;
+static GLenum (*g_glCheckFramebufferStatus)(GLenum) = nullptr;
+static void (*g_glGenerateMipmap)(GLenum) = nullptr;
+
+#ifndef GL_FRAMEBUFFER
+#define GL_FRAMEBUFFER GL_FRAMEBUFFER_EXT
+#endif
+#ifndef GL_COLOR_ATTACHMENT0
+#define GL_COLOR_ATTACHMENT0 GL_COLOR_ATTACHMENT0_EXT
+#endif
+#ifndef GL_FRAMEBUFFER_COMPLETE
+#define GL_FRAMEBUFFER_COMPLETE GL_FRAMEBUFFER_COMPLETE_EXT
+#endif
+
 static void updateGLViewportAndProjection() {
     glViewport(0, 0, g_state.width, g_state.height);
     glMatrixMode(GL_PROJECTION);
@@ -88,6 +106,31 @@ static void updateGLViewportAndProjection() {
     glOrtho(0, g_state.width, g_state.height, 0, -1, 1);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
+}
+
+static void updateGLViewportAndProjectionForSize(int width, int height) {
+    glViewport(0, 0, width, height);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, width, height, 0, -1, 1);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+}
+
+static void loadOpenGLFunctionPointers() {
+    g_glGenFramebuffers = (void (*)(GLsizei, GLuint*))SDL_GL_GetProcAddress("glGenFramebuffers");
+    g_glDeleteFramebuffers = (void (*)(GLsizei, const GLuint*))SDL_GL_GetProcAddress("glDeleteFramebuffers");
+    g_glBindFramebuffer = (void (*)(GLenum, GLuint))SDL_GL_GetProcAddress("glBindFramebuffer");
+    g_glFramebufferTexture2D = (void (*)(GLenum, GLenum, GLenum, GLuint, GLint))SDL_GL_GetProcAddress("glFramebufferTexture2D");
+    g_glCheckFramebufferStatus = (GLenum (*)(GLenum))SDL_GL_GetProcAddress("glCheckFramebufferStatus");
+    g_glGenerateMipmap = (void (*)(GLenum))SDL_GL_GetProcAddress("glGenerateMipmap");
+
+    if (!g_glGenFramebuffers) g_glGenFramebuffers = (void (*)(GLsizei, GLuint*))SDL_GL_GetProcAddress("glGenFramebuffersEXT");
+    if (!g_glDeleteFramebuffers) g_glDeleteFramebuffers = (void (*)(GLsizei, const GLuint*))SDL_GL_GetProcAddress("glDeleteFramebuffersEXT");
+    if (!g_glBindFramebuffer) g_glBindFramebuffer = (void (*)(GLenum, GLuint))SDL_GL_GetProcAddress("glBindFramebufferEXT");
+    if (!g_glFramebufferTexture2D) g_glFramebufferTexture2D = (void (*)(GLenum, GLenum, GLenum, GLuint, GLint))SDL_GL_GetProcAddress("glFramebufferTexture2DEXT");
+    if (!g_glCheckFramebufferStatus) g_glCheckFramebufferStatus = (GLenum (*)(GLenum))SDL_GL_GetProcAddress("glCheckFramebufferStatusEXT");
+    if (!g_glGenerateMipmap) g_glGenerateMipmap = (void (*)(GLenum))SDL_GL_GetProcAddress("glGenerateMipmapEXT");
 }
 
 static void addToPythonSysPath(const std::string& path) {
@@ -420,6 +463,170 @@ static PyTypeObject ImageType = {
     .tp_doc = "Image object",
     .tp_dealloc = image_dealloc,
     .tp_methods = ImageMethods,
+};
+
+// ============================================================================
+// Canvas Type Definition
+// ============================================================================
+
+typedef struct {
+    PyObject_HEAD
+    GLuint texture_id;
+    GLuint fbo_id;
+    int width;
+    int height;
+} CanvasObject;
+
+static PyObject* graphics_setCanvas(PyObject* self, PyObject* args);
+
+static void canvas_dealloc(PyObject* self) {
+    CanvasObject* canvas = (CanvasObject*)self;
+    if (canvas->fbo_id != 0 && g_glDeleteFramebuffers) {
+        g_glDeleteFramebuffers(1, &canvas->fbo_id);
+        canvas->fbo_id = 0;
+    }
+    if (canvas->texture_id != 0) {
+        glDeleteTextures(1, &canvas->texture_id);
+        canvas->texture_id = 0;
+    }
+    Py_TYPE(self)->tp_free((PyObject*)self);
+}
+
+static PyObject* canvas_getWidth(PyObject* self, PyObject* args) {
+    CanvasObject* canvas = (CanvasObject*)self;
+    return PyLong_FromLong(canvas->width);
+}
+
+static PyObject* canvas_getHeight(PyObject* self, PyObject* args) {
+    CanvasObject* canvas = (CanvasObject*)self;
+    return PyLong_FromLong(canvas->height);
+}
+
+static PyObject* canvas_getDimensions(PyObject* self, PyObject* args) {
+    CanvasObject* canvas = (CanvasObject*)self;
+    return Py_BuildValue("(ii)", canvas->width, canvas->height);
+}
+
+static PyObject* canvas_generateMipmaps(PyObject* self, PyObject* args) {
+    CanvasObject* canvas = (CanvasObject*)self;
+    if (!g_glGenerateMipmap) {
+        Py_RETURN_NONE;
+    }
+    glBindTexture(GL_TEXTURE_2D, canvas->texture_id);
+    g_glGenerateMipmap(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    Py_RETURN_NONE;
+}
+
+static PyObject* canvas_getImageData(PyObject* self, PyObject* args) {
+    CanvasObject* canvas = (CanvasObject*)self;
+    if (!g_glBindFramebuffer) {
+        PyErr_SetString(PyExc_RuntimeError, "Framebuffer functions are not available");
+        return nullptr;
+    }
+
+    const size_t size = (size_t)canvas->width * (size_t)canvas->height * 4;
+    std::string buffer(size, '\0');
+
+    PyObject* prev = g_state.current_canvas ? g_state.current_canvas : Py_None;
+    Py_INCREF(prev);
+
+    g_glBindFramebuffer(GL_FRAMEBUFFER, canvas->fbo_id);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(0, 0, canvas->width, canvas->height, GL_RGBA, GL_UNSIGNED_BYTE, buffer.data());
+
+    PyObject* restoreArgs = PyTuple_Pack(1, prev);
+    Py_DECREF(prev);
+    if (!restoreArgs) {
+        return nullptr;
+    }
+    PyObject* restoreRes = graphics_setCanvas(nullptr, restoreArgs);
+    Py_DECREF(restoreArgs);
+    if (!restoreRes) {
+        return nullptr;
+    }
+    Py_DECREF(restoreRes);
+
+    PyObject* data = PyBytes_FromStringAndSize(buffer.data(), (Py_ssize_t)buffer.size());
+    if (!data) return nullptr;
+    PyObject* result = Py_BuildValue("(Oii)", data, canvas->width, canvas->height);
+    Py_DECREF(data);
+    return result;
+}
+
+static PyObject* canvas_renderTo(PyObject* self, PyObject* args) {
+    PyObject* func = nullptr;
+    if (!PyArg_ParseTuple(args, "O", &func)) {
+        return nullptr;
+    }
+    if (!PyCallable_Check(func)) {
+        PyErr_SetString(PyExc_TypeError, "Expected a callable");
+        return nullptr;
+    }
+
+    PyObject* prev = g_state.current_canvas ? g_state.current_canvas : Py_None;
+    Py_INCREF(prev);
+
+    PyObject* setArgs = PyTuple_Pack(1, self);
+    if (!setArgs) {
+        Py_DECREF(prev);
+        return nullptr;
+    }
+    PyObject* setRes = graphics_setCanvas(nullptr, setArgs);
+    Py_DECREF(setArgs);
+    if (!setRes) {
+        Py_DECREF(prev);
+        return nullptr;
+    }
+    Py_DECREF(setRes);
+
+    PyObject* callRes = PyObject_CallObject(func, nullptr);
+    if (!callRes) {
+        PyObject* restoreArgs = PyTuple_Pack(1, prev);
+        Py_DECREF(prev);
+        if (restoreArgs) {
+            PyObject* restoreRes = graphics_setCanvas(nullptr, restoreArgs);
+            Py_DECREF(restoreArgs);
+            Py_XDECREF(restoreRes);
+        } else {
+            PyErr_Clear();
+        }
+        return nullptr;
+    }
+    Py_DECREF(callRes);
+
+    PyObject* restoreArgs = PyTuple_Pack(1, prev);
+    Py_DECREF(prev);
+    if (!restoreArgs) {
+        return nullptr;
+    }
+    PyObject* restoreRes = graphics_setCanvas(nullptr, restoreArgs);
+    Py_DECREF(restoreArgs);
+    if (!restoreRes) {
+        return nullptr;
+    }
+    Py_DECREF(restoreRes);
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef CanvasMethods[] = {
+    {"getWidth", (PyCFunction)canvas_getWidth, METH_NOARGS, "Get canvas width"},
+    {"getHeight", (PyCFunction)canvas_getHeight, METH_NOARGS, "Get canvas height"},
+    {"getDimensions", (PyCFunction)canvas_getDimensions, METH_NOARGS, "Get canvas dimensions"},
+    {"renderTo", (PyCFunction)canvas_renderTo, METH_VARARGS, "Render to canvas with a function"},
+    {"generateMipmaps", (PyCFunction)canvas_generateMipmaps, METH_NOARGS, "Generate mipmaps"},
+    {"getImageData", (PyCFunction)canvas_getImageData, METH_NOARGS, "Read back canvas pixels (bytes, width, height)"},
+    {nullptr, nullptr, 0, nullptr}
+};
+
+static PyTypeObject CanvasType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "love.Canvas",
+    .tp_basicsize = sizeof(CanvasObject),
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_doc = "Canvas object",
+    .tp_dealloc = canvas_dealloc,
+    .tp_methods = CanvasMethods,
 };
 
 // ============================================================================
@@ -860,15 +1067,26 @@ static PyObject* graphics_drawImage(PyObject* self, PyObject* args, PyObject* kw
                                      &image_obj, &x, &y, &r, &sx, &sy, &ox, &oy))
         return nullptr;
 
-    if (!PyObject_TypeCheck(image_obj, &ImageType)) {
-        PyErr_SetString(PyExc_TypeError, "Expected Image object");
+    GLuint texture_id = 0;
+    int drawable_width = 0;
+    int drawable_height = 0;
+    if (PyObject_TypeCheck(image_obj, &ImageType)) {
+        ImageObject* img = (ImageObject*)image_obj;
+        texture_id = img->texture_id;
+        drawable_width = img->width;
+        drawable_height = img->height;
+    } else if (PyObject_TypeCheck(image_obj, &CanvasType)) {
+        CanvasObject* canvas = (CanvasObject*)image_obj;
+        texture_id = canvas->texture_id;
+        drawable_width = canvas->width;
+        drawable_height = canvas->height;
+    } else {
+        PyErr_SetString(PyExc_TypeError, "Expected Image or Canvas object");
         return nullptr;
     }
 
-    ImageObject* img = (ImageObject*)image_obj;
-
     glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, img->texture_id);
+    glBindTexture(GL_TEXTURE_2D, texture_id);
 
     glPushMatrix();
     glTranslatef(x, y, 0.0f);
@@ -876,8 +1094,8 @@ static PyObject* graphics_drawImage(PyObject* self, PyObject* args, PyObject* kw
     glScalef(sx, sy, 1.0f);
     glTranslatef(-ox, -oy, 0.0f);
 
-    float w = (float)img->width;
-    float h = (float)img->height;
+    float w = (float)drawable_width;
+    float h = (float)drawable_height;
 
     glBegin(GL_QUADS);
     glTexCoord2f(0.0f, 0.0f); glVertex2f(0.0f, 0.0f);
@@ -889,6 +1107,99 @@ static PyObject* graphics_drawImage(PyObject* self, PyObject* args, PyObject* kw
     glPopMatrix();
     glBindTexture(GL_TEXTURE_2D, 0);
     glDisable(GL_TEXTURE_2D);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject* graphics_newCanvas(PyObject* self, PyObject* args) {
+    int width = 0;
+    int height = 0;
+    if (!PyArg_ParseTuple(args, "ii", &width, &height)) {
+        return nullptr;
+    }
+    if (width <= 0 || height <= 0) {
+        PyErr_SetString(PyExc_ValueError, "Canvas size must be positive");
+        return nullptr;
+    }
+    if (!g_glGenFramebuffers || !g_glBindFramebuffer || !g_glFramebufferTexture2D || !g_glCheckFramebufferStatus) {
+        PyErr_SetString(PyExc_RuntimeError, "Framebuffer functions are not available");
+        return nullptr;
+    }
+
+    CanvasObject* canvas = PyObject_New(CanvasObject, &CanvasType);
+    if (!canvas) {
+        return nullptr;
+    }
+    canvas->texture_id = 0;
+    canvas->fbo_id = 0;
+    canvas->width = width;
+    canvas->height = height;
+
+    glGenTextures(1, &canvas->texture_id);
+    glBindTexture(GL_TEXTURE_2D, canvas->texture_id);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    g_glGenFramebuffers(1, &canvas->fbo_id);
+    g_glBindFramebuffer(GL_FRAMEBUFFER, canvas->fbo_id);
+    g_glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, canvas->texture_id, 0);
+    GLenum status = g_glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    g_glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    updateGLViewportAndProjection();
+
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        Py_DECREF(canvas);
+        PyErr_SetString(PyExc_RuntimeError, "Failed to create framebuffer for canvas");
+        return nullptr;
+    }
+
+    return (PyObject*)canvas;
+}
+
+static PyObject* graphics_getCanvas(PyObject* self, PyObject* args) {
+    if (!g_state.current_canvas || g_state.current_canvas == Py_None) {
+        Py_RETURN_NONE;
+    }
+    Py_INCREF(g_state.current_canvas);
+    return g_state.current_canvas;
+}
+
+static PyObject* graphics_setCanvas(PyObject* self, PyObject* args) {
+    Py_ssize_t n = PyTuple_Size(args);
+    PyObject* canvas_obj = nullptr;
+    if (n >= 1) {
+        canvas_obj = PyTuple_GetItem(args, 0);
+    }
+
+    if (!g_glBindFramebuffer) {
+        PyErr_SetString(PyExc_RuntimeError, "Framebuffer functions are not available");
+        return nullptr;
+    }
+
+    if (n == 0 || !canvas_obj || canvas_obj == Py_None) {
+        g_glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        updateGLViewportAndProjection();
+        Py_XDECREF(g_state.current_canvas);
+        g_state.current_canvas = nullptr;
+        Py_RETURN_NONE;
+    }
+
+    if (!PyObject_TypeCheck(canvas_obj, &CanvasType)) {
+        PyErr_SetString(PyExc_TypeError, "Expected Canvas or None");
+        return nullptr;
+    }
+
+    CanvasObject* canvas = (CanvasObject*)canvas_obj;
+    g_glBindFramebuffer(GL_FRAMEBUFFER, canvas->fbo_id);
+    updateGLViewportAndProjectionForSize(canvas->width, canvas->height);
+
+    Py_XDECREF(g_state.current_canvas);
+    g_state.current_canvas = canvas_obj;
+    Py_INCREF(canvas_obj);
 
     Py_RETURN_NONE;
 }
@@ -1079,6 +1390,9 @@ static PyMethodDef GraphicsMethods[] = {
     {"setFont", graphics_setFont, METH_VARARGS, "Set current font"},
     {"getFont", graphics_getFont, METH_NOARGS, "Get current font"},
     {"newFont", graphics_newFont, METH_VARARGS, "Create new font (filename, size=12)"},
+    {"newCanvas", graphics_newCanvas, METH_VARARGS, "Create new canvas (width, height)"},
+    {"setCanvas", graphics_setCanvas, METH_VARARGS, "Set active canvas (canvas or None)"},
+    {"getCanvas", graphics_getCanvas, METH_NOARGS, "Get active canvas"},
     {nullptr, nullptr, 0, nullptr}
 };
 
@@ -1678,6 +1992,14 @@ static PyObject* createLoveModule() {
     }
     Py_INCREF(&FontType);
     PyModule_AddObject(font, "Font", (PyObject*)&FontType);
+
+    if (PyType_Ready(&CanvasType) < 0) {
+        return nullptr;
+    }
+    Py_INCREF(&CanvasType);
+    if (graphics) {
+        PyModule_AddObject(graphics, "Canvas", (PyObject*)&CanvasType);
+    }
     
     // Add version
     PyModule_AddStringConstant(love, "__version__", "11.5.0");
@@ -1723,6 +2045,7 @@ bool initSDL() {
     }
     
     SDL_GL_MakeCurrent(g_state.window, g_state.gl_context);
+    loadOpenGLFunctionPointers();
     SDL_GL_SetSwapInterval(g_state.vsync ? 1 : 0);
 
     updateGLViewportAndProjection();
@@ -1740,6 +2063,9 @@ void quitSDL() {
     
     Py_XDECREF(g_state.default_font);
     g_state.default_font = nullptr;
+
+    Py_XDECREF(g_state.current_canvas);
+    g_state.current_canvas = nullptr;
     
     if (ft_library) {
         FT_Done_FreeType(ft_library);
