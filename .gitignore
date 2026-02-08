@@ -48,7 +48,7 @@ build_*/
 build-*/
 
 # Vendored dependencies (kept in workspace, not committed)
-external/
+#external/
 
 # Compiled extensions
 *.dylib
