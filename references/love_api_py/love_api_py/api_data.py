@@ -787,6 +787,82 @@ GRAPHICS_SHADER_TYPE = Type(
     supertypes=["Object"]
 )
 
+GRAPHICS_MESH_TYPE = Type(
+    name="Mesh",
+    description="Mesh object.",
+    constructors=["newMesh"],
+    functions=[
+        Function(name="setVertices", description="Method setVertices.", variants=[]),
+        Function(name="getVertices", description="Method getVertices.", variants=[]),
+        Function(name="setVertexMap", description="Method setVertexMap.", variants=[]),
+        Function(name="flush", description="Method flush.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
+
+GRAPHICS_SPRITE_BATCH_TYPE = Type(
+    name="SpriteBatch",
+    description="SpriteBatch object.",
+    constructors=["newSpriteBatch"],
+    functions=[
+        Function(name="add", description="Method add.", variants=[]),
+        Function(name="set", description="Method set.", variants=[]),
+        Function(name="clear", description="Method clear.", variants=[]),
+        Function(name="flush", description="Method flush.", variants=[]),
+        Function(name="getCount", description="Method getCount.", variants=[]),
+        Function(name="getBufferSize", description="Method getBufferSize.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
+
+GRAPHICS_PARTICLE_SYSTEM_TYPE = Type(
+    name="ParticleSystem",
+    description="ParticleSystem object.",
+    constructors=["newParticleSystem"],
+    functions=[
+        Function(name="emit", description="Method emit.", variants=[]),
+        Function(name="update", description="Method update.", variants=[]),
+        Function(name="start", description="Method start.", variants=[]),
+        Function(name="stop", description="Method stop.", variants=[]),
+        Function(name="reset", description="Method reset.", variants=[]),
+        Function(name="isActive", description="Method isActive.", variants=[]),
+        Function(name="getCount", description="Method getCount.", variants=[]),
+        Function(name="setTexture", description="Method setTexture.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
+
+GRAPHICS_TEXT_TYPE = Type(
+    name="Text",
+    description="Drawable text object.",
+    constructors=["newText"],
+    functions=[
+        Function(name="set", description="Method set.", variants=[]),
+        Function(name="add", description="Method add.", variants=[]),
+        Function(name="clear", description="Method clear.", variants=[]),
+        Function(name="getWidth", description="Method getWidth.", variants=[]),
+        Function(name="getHeight", description="Method getHeight.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
+
+GRAPHICS_VIDEO_TYPE = Type(
+    name="Video",
+    description="Video object.",
+    constructors=["newVideo"],
+    functions=[
+        Function(name="play", description="Method play.", variants=[]),
+        Function(name="pause", description="Method pause.", variants=[]),
+        Function(name="seek", description="Method seek.", variants=[]),
+        Function(name="tell", description="Method tell.", variants=[]),
+        Function(name="isPlaying", description="Method isPlaying.", variants=[]),
+        Function(name="getWidth", description="Method getWidth.", variants=[]),
+        Function(name="getHeight", description="Method getHeight.", variants=[]),
+        Function(name="getSource", description="Method getSource.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
+
 # Graphics Enums
 DRAW_MODE_ENUM = Enum(
     name="DrawMode",
@@ -838,6 +914,90 @@ ARC_TYPE_ENUM = Enum(
         EnumConstant(name="pie", description="Draw the arc like a pie."),
         EnumConstant(name="open", description="Draw the arc like an open curve."),
         EnumConstant(name="closed", description="Draw the arc like a closed curve."),
+    ]
+)
+
+GRAPHICS_ALIGN_MODE_ENUM = Enum(
+    name="AlignMode",
+    description="AlignMode constants.",
+    constants=[
+        EnumConstant(name="left", description=""),
+        EnumConstant(name="center", description=""),
+        EnumConstant(name="right", description=""),
+        EnumConstant(name="justify", description=""),
+    ]
+)
+
+GRAPHICS_BLEND_ALPHA_MODE_ENUM = Enum(
+    name="BlendAlphaMode",
+    description="BlendAlphaMode constants.",
+    constants=[
+        EnumConstant(name="alphamultiply", description=""),
+        EnumConstant(name="premultiplied", description=""),
+    ]
+)
+
+GRAPHICS_LINE_STYLE_ENUM = Enum(
+    name="LineStyle",
+    description="LineStyle constants.",
+    constants=[
+        EnumConstant(name="smooth", description=""),
+        EnumConstant(name="rough", description=""),
+    ]
+)
+
+GRAPHICS_LINE_JOIN_ENUM = Enum(
+    name="LineJoin",
+    description="LineJoin constants.",
+    constants=[
+        EnumConstant(name="none", description=""),
+        EnumConstant(name="miter", description=""),
+        EnumConstant(name="bevel", description=""),
+    ]
+)
+
+GRAPHICS_STACK_TYPE_ENUM = Enum(
+    name="StackType",
+    description="StackType constants.",
+    constants=[
+        EnumConstant(name="transform", description=""),
+        EnumConstant(name="all", description=""),
+    ]
+)
+
+GRAPHICS_MESH_DRAW_MODE_ENUM = Enum(
+    name="MeshDrawMode",
+    description="MeshDrawMode constants.",
+    constants=[
+        EnumConstant(name="fan", description=""),
+        EnumConstant(name="strip", description=""),
+        EnumConstant(name="triangles", description=""),
+        EnumConstant(name="points", description=""),
+    ]
+)
+
+GRAPHICS_COMPARE_MODE_ENUM = Enum(
+    name="CompareMode",
+    description="CompareMode constants.",
+    constants=[
+        EnumConstant(name="equal", description=""),
+        EnumConstant(name="notequal", description=""),
+        EnumConstant(name="less", description=""),
+        EnumConstant(name="lequal", description=""),
+        EnumConstant(name="gequal", description=""),
+        EnumConstant(name="greater", description=""),
+        EnumConstant(name="always", description=""),
+        EnumConstant(name="never", description=""),
+    ]
+)
+
+GRAPHICS_CULL_MODE_ENUM = Enum(
+    name="CullMode",
+    description="CullMode constants.",
+    constants=[
+        EnumConstant(name="none", description=""),
+        EnumConstant(name="back", description=""),
+        EnumConstant(name="front", description=""),
     ]
 )
 
@@ -962,6 +1122,121 @@ GRAPHICS_NEW_SHADER = Function(
     ]
 )
 
+GRAPHICS_NEW_IMAGE_FONT = Function(
+    name="newImageFont",
+    description="Creates a new Font from an image and a string of glyphs.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="Image", name="image", description="The image containing the glyphs."),
+                Argument(type="string", name="glyphs", description="The string of glyphs in the image."),
+            ],
+            returns=[
+                Return(type="Font", name="font", description="The created font."),
+            ]
+        )
+    ]
+)
+
+GRAPHICS_NEW_TEXT = Function(
+    name="newText",
+    description="Creates a new drawable Text object.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="Font", name="font", description="The font to use."),
+                Argument(type="string", name="text", description="The initial text.", default=""),
+            ],
+            returns=[
+                Return(type="Text", name="text", description="The created Text object."),
+            ]
+        ),
+        Variant(
+            arguments=[
+                Argument(type="Font", name="font", description="The font to use."),
+            ],
+            returns=[
+                Return(type="Text", name="text", description="The created Text object."),
+            ]
+        ),
+    ]
+)
+
+GRAPHICS_NEW_VIDEO = Function(
+    name="newVideo",
+    description="Creates a new Video object from a video file.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="string", name="filename", description="The video filename."),
+            ],
+            returns=[
+                Return(type="Video", name="video", description="The created Video object."),
+            ]
+        )
+    ]
+)
+
+GRAPHICS_NEW_MESH = Function(
+    name="newMesh",
+    description="Creates a new Mesh.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="table", name="vertices", description="Vertex data used to initialize the mesh."),
+                Argument(type="MeshDrawMode", name="mode", description="How the mesh should be drawn.", default="triangles"),
+                Argument(type="string", name="usage", description="Vertex storage usage hint.", default="dynamic"),
+            ],
+            returns=[
+                Return(type="Mesh", name="mesh", description="The created Mesh."),
+            ]
+        ),
+        Variant(
+            arguments=[
+                Argument(type="number", name="vertexcount", description="The number of vertices in the mesh."),
+                Argument(type="MeshDrawMode", name="mode", description="How the mesh should be drawn.", default="triangles"),
+                Argument(type="string", name="usage", description="Vertex storage usage hint.", default="dynamic"),
+            ],
+            returns=[
+                Return(type="Mesh", name="mesh", description="The created Mesh."),
+            ]
+        ),
+    ]
+)
+
+GRAPHICS_NEW_SPRITE_BATCH = Function(
+    name="newSpriteBatch",
+    description="Creates a new SpriteBatch.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="Image", name="texture", description="The image texture to use."),
+                Argument(type="number", name="size", description="The maximum number of sprites.", default="1000"),
+                Argument(type="string", name="usage", description="Vertex storage usage hint.", default="dynamic"),
+            ],
+            returns=[
+                Return(type="SpriteBatch", name="batch", description="The created SpriteBatch."),
+            ]
+        )
+    ]
+)
+
+GRAPHICS_NEW_PARTICLE_SYSTEM = Function(
+    name="newParticleSystem",
+    description="Creates a new ParticleSystem.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="Texture", name="texture", description="The texture to use for particles."),
+                Argument(type="number", name="buffer", description="The maximum number of particles.", default="1000"),
+            ],
+            returns=[
+                Return(type="ParticleSystem", name="system", description="The created ParticleSystem."),
+            ]
+        )
+    ]
+)
+
 GRAPHICS_DRAW = Function(
     name="draw",
     description="Draws a drawable object (Image, Canvas, etc.) to the screen.",
@@ -1026,6 +1301,81 @@ GRAPHICS_CIRCLE = Function(
                 Argument(type="number", name="radius", description="The radius of the circle."),
             ]
         )
+    ]
+)
+
+GRAPHICS_ARC = Function(
+    name="arc",
+    description="Draws an arc.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="DrawMode", name="mode", description="How to draw the arc."),
+                Argument(type="ArcType", name="arctype", description="How to draw the arc."),
+                Argument(type="number", name="x", description="The x-coordinate."),
+                Argument(type="number", name="y", description="The y-coordinate."),
+                Argument(type="number", name="radius", description="The radius of the arc."),
+                Argument(type="number", name="angle1", description="The start angle in radians."),
+                Argument(type="number", name="angle2", description="The end angle in radians."),
+                Argument(type="number", name="segments", description="The number of segments used for drawing.", default="nil"),
+            ]
+        )
+    ]
+)
+
+GRAPHICS_ELLIPSE = Function(
+    name="ellipse",
+    description="Draws an ellipse.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="DrawMode", name="mode", description="How to draw the ellipse."),
+                Argument(type="number", name="x", description="The x-coordinate."),
+                Argument(type="number", name="y", description="The y-coordinate."),
+                Argument(type="number", name="radiusx", description="The radius on the x axis."),
+                Argument(type="number", name="radiusy", description="The radius on the y axis.", default="radiusx"),
+                Argument(type="number", name="segments", description="The number of segments used for drawing.", default="nil"),
+            ]
+        )
+    ]
+)
+
+GRAPHICS_POINTS = Function(
+    name="points",
+    description="Draws points.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="number", name="x", description="The x-coordinate of the point."),
+                Argument(type="number", name="y", description="The y-coordinate of the point."),
+            ]
+        ),
+        Variant(
+            arguments=[
+                Argument(type="table", name="points", description="A table of points {x1, y1, x2, y2, ...}."),
+            ]
+        ),
+    ]
+)
+
+GRAPHICS_POLYGON = Function(
+    name="polygon",
+    description="Draws a polygon.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="DrawMode", name="mode", description="How to draw the polygon."),
+                Argument(type="table", name="vertices", description="A table of vertices {x1, y1, x2, y2, ...}."),
+            ]
+        ),
+        Variant(
+            arguments=[
+                Argument(type="DrawMode", name="mode", description="How to draw the polygon."),
+                Argument(type="number", name="x1", description="The x-coordinate of the first vertex."),
+                Argument(type="number", name="y1", description="The y-coordinate of the first vertex."),
+                Argument(type="number", name="...", description="Remaining vertex coordinates."),
+            ]
+        ),
     ]
 )
 
@@ -1277,6 +1627,30 @@ GRAPHICS_SHEAR = Function(
     ]
 )
 
+GRAPHICS_APPLY_TRANSFORM = Function(
+    name="applyTransform",
+    description="Applies a Transform object to the current coordinate transformation.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="Transform", name="transform", description="The Transform to apply."),
+            ]
+        )
+    ]
+)
+
+GRAPHICS_REPLACE_TRANSFORM = Function(
+    name="replaceTransform",
+    description="Replaces the current coordinate transformation with a Transform.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="Transform", name="transform", description="The Transform to replace with."),
+            ]
+        )
+    ]
+)
+
 GRAPHICS_ORIGIN = Function(
     name="origin",
     description="Resets the transformation stack to the identity matrix.",
@@ -1310,6 +1684,23 @@ GRAPHICS_PRESENT = Function(
     description="Displays the results of drawing operations on the screen.",
     variants=[
         Variant()
+    ]
+)
+
+GRAPHICS_CAPTURE_SCREENSHOT = Function(
+    name="captureScreenshot",
+    description="Captures a screenshot and saves it to a file.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="string", name="filename", description="The screenshot filename.", default="nil"),
+            ]
+        ),
+        Variant(
+            arguments=[
+                Argument(type="function", name="callback", description="Callback which receives the ImageData."),
+            ]
+        ),
     ]
 )
 
@@ -1356,6 +1747,112 @@ GRAPHICS_GET_FONT = Function(
         Variant(
             returns=[
                 Return(type="Font", name="font", description="The current font."),
+            ]
+        )
+    ]
+)
+
+GRAPHICS_SET_SHADER = Function(
+    name="setShader",
+    description="Sets the active shader.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="Shader", name="shader", description="The shader to use.", default="nil"),
+            ]
+        )
+    ]
+)
+
+GRAPHICS_GET_SHADER = Function(
+    name="getShader",
+    description="Gets the active shader.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="Shader", name="shader", description="The current shader, or nil."),
+            ]
+        )
+    ]
+)
+
+GRAPHICS_SET_SCISSOR = Function(
+    name="setScissor",
+    description="Sets the scissor rectangle.",
+    variants=[
+        Variant(),
+        Variant(
+            arguments=[
+                Argument(type="number", name="x", description="The x position of the scissor rectangle."),
+                Argument(type="number", name="y", description="The y position of the scissor rectangle."),
+                Argument(type="number", name="width", description="The width of the scissor rectangle."),
+                Argument(type="number", name="height", description="The height of the scissor rectangle."),
+            ]
+        ),
+    ]
+)
+
+GRAPHICS_GET_SCISSOR = Function(
+    name="getScissor",
+    description="Gets the scissor rectangle.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="number", name="x", description="The x position of the scissor rectangle, or nil."),
+                Return(type="number", name="y", description="The y position of the scissor rectangle, or nil."),
+                Return(type="number", name="width", description="The width of the scissor rectangle, or nil."),
+                Return(type="number", name="height", description="The height of the scissor rectangle, or nil."),
+            ]
+        )
+    ]
+)
+
+GRAPHICS_SET_STENCIL_TEST = Function(
+    name="setStencilTest",
+    description="Sets the stencil test.",
+    variants=[
+        Variant(),
+        Variant(
+            arguments=[
+                Argument(type="CompareMode", name="comparemode", description="How to compare stencil values."),
+                Argument(type="number", name="value", description="The value to compare against.", default="0"),
+            ]
+        ),
+    ]
+)
+
+GRAPHICS_GET_STENCIL_TEST = Function(
+    name="getStencilTest",
+    description="Gets the current stencil test.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="CompareMode", name="comparemode", description="The current compare mode, or nil."),
+                Return(type="number", name="value", description="The current stencil reference value, or nil."),
+            ]
+        )
+    ]
+)
+
+GRAPHICS_SET_LINE_STYLE = Function(
+    name="setLineStyle",
+    description="Sets the line style.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="LineStyle", name="style", description="The line style."),
+            ]
+        )
+    ]
+)
+
+GRAPHICS_GET_LINE_STYLE = Function(
+    name="getLineStyle",
+    description="Gets the line style.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="LineStyle", name="style", description="The current line style."),
             ]
         )
     ]
@@ -1484,6 +1981,11 @@ GRAPHICS_MODULE = Module(
         GRAPHICS_FONT_TYPE,
         GRAPHICS_QUAD_TYPE,
         GRAPHICS_SHADER_TYPE,
+        GRAPHICS_MESH_TYPE,
+        GRAPHICS_SPRITE_BATCH_TYPE,
+        GRAPHICS_PARTICLE_SYSTEM_TYPE,
+        GRAPHICS_TEXT_TYPE,
+        GRAPHICS_VIDEO_TYPE,
     ],
     functions=[
         GRAPHICS_NEW_IMAGE,
@@ -1491,9 +1993,19 @@ GRAPHICS_MODULE = Module(
         GRAPHICS_NEW_FONT,
         GRAPHICS_NEW_QUAD,
         GRAPHICS_NEW_SHADER,
+        GRAPHICS_NEW_IMAGE_FONT,
+        GRAPHICS_NEW_TEXT,
+        GRAPHICS_NEW_VIDEO,
+        GRAPHICS_NEW_MESH,
+        GRAPHICS_NEW_SPRITE_BATCH,
+        GRAPHICS_NEW_PARTICLE_SYSTEM,
         GRAPHICS_DRAW,
         GRAPHICS_RECTANGLE,
         GRAPHICS_CIRCLE,
+        GRAPHICS_ARC,
+        GRAPHICS_ELLIPSE,
+        GRAPHICS_POINTS,
+        GRAPHICS_POLYGON,
         GRAPHICS_LINE,
         GRAPHICS_PRINT,
         GRAPHICS_PRINTF,
@@ -1509,15 +2021,26 @@ GRAPHICS_MODULE = Module(
         GRAPHICS_ROTATE,
         GRAPHICS_SCALE,
         GRAPHICS_SHEAR,
+        GRAPHICS_APPLY_TRANSFORM,
+        GRAPHICS_REPLACE_TRANSFORM,
         GRAPHICS_ORIGIN,
         GRAPHICS_CLEAR,
         GRAPHICS_PRESENT,
+        GRAPHICS_CAPTURE_SCREENSHOT,
         GRAPHICS_SET_CANVAS,
         GRAPHICS_GET_CANVAS,
         GRAPHICS_SET_FONT,
         GRAPHICS_GET_FONT,
+        GRAPHICS_SET_SHADER,
+        GRAPHICS_GET_SHADER,
+        GRAPHICS_SET_SCISSOR,
+        GRAPHICS_GET_SCISSOR,
+        GRAPHICS_SET_STENCIL_TEST,
+        GRAPHICS_GET_STENCIL_TEST,
         GRAPHICS_SET_LINE_WIDTH,
         GRAPHICS_GET_LINE_WIDTH,
+        GRAPHICS_SET_LINE_STYLE,
+        GRAPHICS_GET_LINE_STYLE,
         GRAPHICS_SET_POINT_SIZE,
         GRAPHICS_GET_POINT_SIZE,
         GRAPHICS_SET_DEFAULT_FILTER,
@@ -1532,6 +2055,14 @@ GRAPHICS_MODULE = Module(
         WRAP_MODE_ENUM,
         BLEND_MODE_ENUM,
         ARC_TYPE_ENUM,
+        GRAPHICS_ALIGN_MODE_ENUM,
+        GRAPHICS_BLEND_ALPHA_MODE_ENUM,
+        GRAPHICS_LINE_STYLE_ENUM,
+        GRAPHICS_LINE_JOIN_ENUM,
+        GRAPHICS_STACK_TYPE_ENUM,
+        GRAPHICS_MESH_DRAW_MODE_ENUM,
+        GRAPHICS_COMPARE_MODE_ENUM,
+        GRAPHICS_CULL_MODE_ENUM,
     ]
 )
 
@@ -1726,6 +2257,226 @@ KEY_CONSTANT_ENUM = Enum(
     ]
 )
 
+KEYBOARD_SCANCODE_ENUM = Enum(
+    name="Scancode",
+    description="Keyboard scancode constants.",
+    constants=[
+        EnumConstant(name="a", description=""),
+        EnumConstant(name="b", description=""),
+        EnumConstant(name="c", description=""),
+        EnumConstant(name="d", description=""),
+        EnumConstant(name="e", description=""),
+        EnumConstant(name="f", description=""),
+        EnumConstant(name="g", description=""),
+        EnumConstant(name="h", description=""),
+        EnumConstant(name="i", description=""),
+        EnumConstant(name="j", description=""),
+        EnumConstant(name="k", description=""),
+        EnumConstant(name="l", description=""),
+        EnumConstant(name="m", description=""),
+        EnumConstant(name="n", description=""),
+        EnumConstant(name="o", description=""),
+        EnumConstant(name="p", description=""),
+        EnumConstant(name="q", description=""),
+        EnumConstant(name="r", description=""),
+        EnumConstant(name="s", description=""),
+        EnumConstant(name="t", description=""),
+        EnumConstant(name="u", description=""),
+        EnumConstant(name="v", description=""),
+        EnumConstant(name="w", description=""),
+        EnumConstant(name="x", description=""),
+        EnumConstant(name="y", description=""),
+        EnumConstant(name="z", description=""),
+        EnumConstant(name="1", description=""),
+        EnumConstant(name="2", description=""),
+        EnumConstant(name="3", description=""),
+        EnumConstant(name="4", description=""),
+        EnumConstant(name="5", description=""),
+        EnumConstant(name="6", description=""),
+        EnumConstant(name="7", description=""),
+        EnumConstant(name="8", description=""),
+        EnumConstant(name="9", description=""),
+        EnumConstant(name="0", description=""),
+        EnumConstant(name="return", description=""),
+        EnumConstant(name="escape", description=""),
+        EnumConstant(name="backspace", description=""),
+        EnumConstant(name="tab", description=""),
+        EnumConstant(name="space", description=""),
+        EnumConstant(name="minus", description=""),
+        EnumConstant(name="equals", description=""),
+        EnumConstant(name="leftbracket", description=""),
+        EnumConstant(name="rightbracket", description=""),
+        EnumConstant(name="backslash", description=""),
+        EnumConstant(name="nonushash", description=""),
+        EnumConstant(name="semicolon", description=""),
+        EnumConstant(name="apostrophe", description=""),
+        EnumConstant(name="grave", description=""),
+        EnumConstant(name="comma", description=""),
+        EnumConstant(name="period", description=""),
+        EnumConstant(name="slash", description=""),
+        EnumConstant(name="capslock", description=""),
+        EnumConstant(name="f1", description=""),
+        EnumConstant(name="f2", description=""),
+        EnumConstant(name="f3", description=""),
+        EnumConstant(name="f4", description=""),
+        EnumConstant(name="f5", description=""),
+        EnumConstant(name="f6", description=""),
+        EnumConstant(name="f7", description=""),
+        EnumConstant(name="f8", description=""),
+        EnumConstant(name="f9", description=""),
+        EnumConstant(name="f10", description=""),
+        EnumConstant(name="f11", description=""),
+        EnumConstant(name="f12", description=""),
+        EnumConstant(name="printscreen", description=""),
+        EnumConstant(name="scrolllock", description=""),
+        EnumConstant(name="pause", description=""),
+        EnumConstant(name="insert", description=""),
+        EnumConstant(name="home", description=""),
+        EnumConstant(name="pageup", description=""),
+        EnumConstant(name="delete", description=""),
+        EnumConstant(name="end", description=""),
+        EnumConstant(name="pagedown", description=""),
+        EnumConstant(name="right", description=""),
+        EnumConstant(name="left", description=""),
+        EnumConstant(name="down", description=""),
+        EnumConstant(name="up", description=""),
+        EnumConstant(name="numlockclear", description=""),
+        EnumConstant(name="kp_divide", description=""),
+        EnumConstant(name="kp_multiply", description=""),
+        EnumConstant(name="kp_minus", description=""),
+        EnumConstant(name="kp_plus", description=""),
+        EnumConstant(name="kp_enter", description=""),
+        EnumConstant(name="kp_1", description=""),
+        EnumConstant(name="kp_2", description=""),
+        EnumConstant(name="kp_3", description=""),
+        EnumConstant(name="kp_4", description=""),
+        EnumConstant(name="kp_5", description=""),
+        EnumConstant(name="kp_6", description=""),
+        EnumConstant(name="kp_7", description=""),
+        EnumConstant(name="kp_8", description=""),
+        EnumConstant(name="kp_9", description=""),
+        EnumConstant(name="kp_0", description=""),
+        EnumConstant(name="kp_period", description=""),
+        EnumConstant(name="nonusbackslash", description=""),
+        EnumConstant(name="application", description=""),
+        EnumConstant(name="power", description=""),
+        EnumConstant(name="kp_equals", description=""),
+        EnumConstant(name="f13", description=""),
+        EnumConstant(name="f14", description=""),
+        EnumConstant(name="f15", description=""),
+        EnumConstant(name="f16", description=""),
+        EnumConstant(name="f17", description=""),
+        EnumConstant(name="f18", description=""),
+        EnumConstant(name="f19", description=""),
+        EnumConstant(name="f20", description=""),
+        EnumConstant(name="f21", description=""),
+        EnumConstant(name="f22", description=""),
+        EnumConstant(name="f23", description=""),
+        EnumConstant(name="f24", description=""),
+        EnumConstant(name="execute", description=""),
+        EnumConstant(name="help", description=""),
+        EnumConstant(name="menu", description=""),
+        EnumConstant(name="select", description=""),
+        EnumConstant(name="stop", description=""),
+        EnumConstant(name="again", description=""),
+        EnumConstant(name="undo", description=""),
+        EnumConstant(name="cut", description=""),
+        EnumConstant(name="copy", description=""),
+        EnumConstant(name="paste", description=""),
+        EnumConstant(name="find", description=""),
+        EnumConstant(name="mute", description=""),
+        EnumConstant(name="volumeup", description=""),
+        EnumConstant(name="volumedown", description=""),
+        EnumConstant(name="kp_comma", description=""),
+        EnumConstant(name="kp_equalsas400", description=""),
+        EnumConstant(name="international1", description=""),
+        EnumConstant(name="international2", description=""),
+        EnumConstant(name="international3", description=""),
+        EnumConstant(name="international4", description=""),
+        EnumConstant(name="international5", description=""),
+        EnumConstant(name="international6", description=""),
+        EnumConstant(name="international7", description=""),
+        EnumConstant(name="international8", description=""),
+        EnumConstant(name="international9", description=""),
+        EnumConstant(name="lang1", description=""),
+        EnumConstant(name="lang2", description=""),
+        EnumConstant(name="lang3", description=""),
+        EnumConstant(name="lang4", description=""),
+        EnumConstant(name="lang5", description=""),
+        EnumConstant(name="lang6", description=""),
+        EnumConstant(name="lang7", description=""),
+        EnumConstant(name="lang8", description=""),
+        EnumConstant(name="lang9", description=""),
+        EnumConstant(name="alterase", description=""),
+        EnumConstant(name="sysreq", description=""),
+        EnumConstant(name="cancel", description=""),
+        EnumConstant(name="clear", description=""),
+        EnumConstant(name="prior", description=""),
+        EnumConstant(name="return2", description=""),
+        EnumConstant(name="separator", description=""),
+        EnumConstant(name="out", description=""),
+        EnumConstant(name="oper", description=""),
+        EnumConstant(name="clearagain", description=""),
+        EnumConstant(name="crsel", description=""),
+        EnumConstant(name="exsel", description=""),
+        EnumConstant(name="kp_00", description=""),
+        EnumConstant(name="kp_000", description=""),
+        EnumConstant(name="thousandsseparator", description=""),
+        EnumConstant(name="decimalseparator", description=""),
+        EnumConstant(name="currencyunit", description=""),
+        EnumConstant(name="currencysubunit", description=""),
+        EnumConstant(name="kp_leftparen", description=""),
+        EnumConstant(name="kp_rightparen", description=""),
+        EnumConstant(name="kp_leftbrace", description=""),
+        EnumConstant(name="kp_rightbrace", description=""),
+        EnumConstant(name="kp_tab", description=""),
+        EnumConstant(name="kp_backspace", description=""),
+        EnumConstant(name="kp_a", description=""),
+        EnumConstant(name="kp_b", description=""),
+        EnumConstant(name="kp_c", description=""),
+        EnumConstant(name="kp_d", description=""),
+        EnumConstant(name="kp_e", description=""),
+        EnumConstant(name="kp_f", description=""),
+        EnumConstant(name="kp_xor", description=""),
+        EnumConstant(name="kp_power", description=""),
+        EnumConstant(name="kp_percent", description=""),
+        EnumConstant(name="kp_less", description=""),
+        EnumConstant(name="kp_greater", description=""),
+        EnumConstant(name="kp_ampersand", description=""),
+        EnumConstant(name="kp_dblampersand", description=""),
+        EnumConstant(name="kp_verticalbar", description=""),
+        EnumConstant(name="kp_dblverticalbar", description=""),
+        EnumConstant(name="kp_colon", description=""),
+        EnumConstant(name="kp_hash", description=""),
+        EnumConstant(name="kp_space", description=""),
+        EnumConstant(name="kp_at", description=""),
+        EnumConstant(name="kp_exclam", description=""),
+        EnumConstant(name="kp_memstore", description=""),
+        EnumConstant(name="kp_memrecall", description=""),
+        EnumConstant(name="kp_memclear", description=""),
+        EnumConstant(name="kp_memadd", description=""),
+        EnumConstant(name="kp_memsubtract", description=""),
+        EnumConstant(name="kp_memmultiply", description=""),
+        EnumConstant(name="kp_memdivide", description=""),
+        EnumConstant(name="kp_plusminus", description=""),
+        EnumConstant(name="kp_clear", description=""),
+        EnumConstant(name="kp_clearentry", description=""),
+        EnumConstant(name="kp_binary", description=""),
+        EnumConstant(name="kp_octal", description=""),
+        EnumConstant(name="kp_decimal", description=""),
+        EnumConstant(name="kp_hexadecimal", description=""),
+        EnumConstant(name="lctrl", description=""),
+        EnumConstant(name="lshift", description=""),
+        EnumConstant(name="lalt", description=""),
+        EnumConstant(name="lgui", description=""),
+        EnumConstant(name="rctrl", description=""),
+        EnumConstant(name="rshift", description=""),
+        EnumConstant(name="ralt", description=""),
+        EnumConstant(name="rgui", description=""),
+        EnumConstant(name="mode", description=""),
+    ]
+)
+
 # Keyboard Module
 KEYBOARD_MODULE = Module(
     name="keyboard",
@@ -1742,12 +2493,42 @@ KEYBOARD_MODULE = Module(
     ],
     enums=[
         KEY_CONSTANT_ENUM,
+        KEYBOARD_SCANCODE_ENUM,
     ]
 )
 
 # ============================================================================
 # Module: Mouse
 # ============================================================================
+
+MOUSE_CURSOR_TYPE_ENUM = Enum(
+    name="CursorType",
+    description="CursorType constants.",
+    constants=[
+        EnumConstant(name="arrow", description=""),
+        EnumConstant(name="ibeam", description=""),
+        EnumConstant(name="wait", description=""),
+        EnumConstant(name="waitarrow", description=""),
+        EnumConstant(name="crosshair", description=""),
+        EnumConstant(name="sizenwse", description=""),
+        EnumConstant(name="sizenesw", description=""),
+        EnumConstant(name="sizewe", description=""),
+        EnumConstant(name="sizens", description=""),
+        EnumConstant(name="sizeall", description=""),
+        EnumConstant(name="no", description=""),
+        EnumConstant(name="hand", description=""),
+    ]
+)
+
+MOUSE_CURSOR_TYPE = Type(
+    name="Cursor",
+    description="Mouse cursor object.",
+    constructors=["newCursor", "getSystemCursor"],
+    functions=[
+        Function(name="getType", description="Method getType.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
 
 # Mouse Functions
 MOUSE_GET_POSITION = Function(
@@ -1883,11 +2664,81 @@ MOUSE_SET_RELATIVE_MODE = Function(
     ]
 )
 
+MOUSE_IS_RELATIVE_MODE = Function(
+    name="isRelativeMode",
+    description="Gets whether the mouse is in relative mode.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="boolean", name="enabled", description="True if relative mode is enabled."),
+            ]
+        )
+    ]
+)
+
+MOUSE_NEW_CURSOR = Function(
+    name="newCursor",
+    description="Creates a new Cursor from ImageData.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="ImageData", name="imagedata", description="The ImageData to use."),
+                Argument(type="number", name="hotx", description="The x coordinate of the hot spot."),
+                Argument(type="number", name="hoty", description="The y coordinate of the hot spot."),
+            ],
+            returns=[
+                Return(type="Cursor", name="cursor", description="The created cursor."),
+            ]
+        )
+    ]
+)
+
+MOUSE_GET_SYSTEM_CURSOR = Function(
+    name="getSystemCursor",
+    description="Gets a system Cursor.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="CursorType", name="cursor", description="The system cursor type."),
+            ],
+            returns=[
+                Return(type="Cursor", name="cursor", description="The system cursor."),
+            ]
+        )
+    ]
+)
+
+MOUSE_SET_CURSOR = Function(
+    name="setCursor",
+    description="Sets the current Cursor.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="Cursor", name="cursor", description="The cursor to set.", default="nil"),
+            ]
+        )
+    ]
+)
+
+MOUSE_GET_CURSOR = Function(
+    name="getCursor",
+    description="Gets the current Cursor.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="Cursor", name="cursor", description="The current cursor, or nil."),
+            ]
+        )
+    ]
+)
+
 # Mouse Module
 MOUSE_MODULE = Module(
     name="mouse",
     description="Provides an interface to the user's mouse.",
-    types=[],
+    types=[
+        MOUSE_CURSOR_TYPE,
+    ],
     functions=[
         MOUSE_GET_POSITION,
         MOUSE_GET_X,
@@ -1899,8 +2750,15 @@ MOUSE_MODULE = Module(
         MOUSE_SET_GRABBED,
         MOUSE_IS_GRABBED,
         MOUSE_SET_RELATIVE_MODE,
+        MOUSE_IS_RELATIVE_MODE,
+        MOUSE_NEW_CURSOR,
+        MOUSE_GET_SYSTEM_CURSOR,
+        MOUSE_SET_CURSOR,
+        MOUSE_GET_CURSOR,
     ],
-    enums=[]
+    enums=[
+        MOUSE_CURSOR_TYPE_ENUM,
+    ]
 )
 
 # ============================================================================
@@ -1955,6 +2813,18 @@ TIMER_SLEEP = Function(
     ]
 )
 
+TIMER_STEP = Function(
+    name="step",
+    description="Advances the internal timer and returns the time since the last step.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="number", name="dt", description="Time since the previous step in seconds."),
+            ]
+        )
+    ]
+)
+
 TIMER_MODULE = Module(
     name="timer",
     description="Provides high-resolution timing functionality.",
@@ -1964,6 +2834,7 @@ TIMER_MODULE = Module(
         TIMER_GET_DELTA,
         TIMER_GET_FPS,
         TIMER_SLEEP,
+        TIMER_STEP,
     ],
     enums=[]
 )
@@ -1971,6 +2842,25 @@ TIMER_MODULE = Module(
 # ============================================================================
 # Module: Window
 # ============================================================================
+
+WINDOW_FULLSCREEN_TYPE_ENUM = Enum(
+    name="FullscreenType",
+    description="FullscreenType constants.",
+    constants=[
+        EnumConstant(name="exclusive", description=""),
+        EnumConstant(name="desktop", description=""),
+    ]
+)
+
+WINDOW_MESSAGE_BOX_TYPE_ENUM = Enum(
+    name="MessageBoxType",
+    description="MessageBoxType constants.",
+    constants=[
+        EnumConstant(name="info", description=""),
+        EnumConstant(name="warning", description=""),
+        EnumConstant(name="error", description=""),
+    ]
+)
 
 WINDOW_SET_MODE = Function(
     name="setMode",
@@ -2154,6 +3044,198 @@ WINDOW_SHOW_MESSAGE_BOX = Function(
     ]
 )
 
+WINDOW_MAXIMIZE = Function(
+    name="maximize",
+    description="Maximizes the window.",
+    variants=[
+        Variant()
+    ]
+)
+
+WINDOW_MINIMIZE = Function(
+    name="minimize",
+    description="Minimizes the window.",
+    variants=[
+        Variant()
+    ]
+)
+
+WINDOW_RESTORE = Function(
+    name="restore",
+    description="Restores the window to its previous state.",
+    variants=[
+        Variant()
+    ]
+)
+
+WINDOW_HAS_FOCUS = Function(
+    name="hasFocus",
+    description="Gets whether the window has focus.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="boolean", name="focused", description="True if the window has focus."),
+            ]
+        )
+    ]
+)
+
+WINDOW_HAS_MOUSE_FOCUS = Function(
+    name="hasMouseFocus",
+    description="Gets whether the window has mouse focus.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="boolean", name="focused", description="True if the window has mouse focus."),
+            ]
+        )
+    ]
+)
+
+WINDOW_IS_DISPLAY_SLEEP_ENABLED = Function(
+    name="isDisplaySleepEnabled",
+    description="Gets whether the system is allowed to sleep.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="boolean", name="enabled", description="True if display sleep is enabled."),
+            ]
+        )
+    ]
+)
+
+WINDOW_SET_DISPLAY_SLEEP_ENABLED = Function(
+    name="setDisplaySleepEnabled",
+    description="Sets whether the system is allowed to sleep.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="boolean", name="enable", description="Whether to enable display sleep."),
+            ]
+        )
+    ]
+)
+
+WINDOW_GET_DPI_SCALE = Function(
+    name="getDPIScale",
+    description="Gets the DPI scale factor of the window.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="number", name="scale", description="The DPI scale factor."),
+            ]
+        )
+    ]
+)
+
+WINDOW_TO_PIXELS = Function(
+    name="toPixels",
+    description="Converts from units to pixels based on DPI scaling.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="number", name="x", description="The x value to convert."),
+            ],
+            returns=[
+                Return(type="number", name="px", description="The x value in pixels."),
+            ]
+        ),
+        Variant(
+            arguments=[
+                Argument(type="number", name="x", description="The x value to convert."),
+                Argument(type="number", name="y", description="The y value to convert."),
+            ],
+            returns=[
+                Return(type="number", name="px", description="The x value in pixels."),
+                Return(type="number", name="py", description="The y value in pixels."),
+            ]
+        ),
+    ]
+)
+
+WINDOW_FROM_PIXELS = Function(
+    name="fromPixels",
+    description="Converts from pixels to units based on DPI scaling.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="number", name="px", description="The x value in pixels."),
+            ],
+            returns=[
+                Return(type="number", name="x", description="The x value in units."),
+            ]
+        ),
+        Variant(
+            arguments=[
+                Argument(type="number", name="px", description="The x value in pixels."),
+                Argument(type="number", name="py", description="The y value in pixels."),
+            ],
+            returns=[
+                Return(type="number", name="x", description="The x value in units."),
+                Return(type="number", name="y", description="The y value in units."),
+            ]
+        ),
+    ]
+)
+
+WINDOW_GET_DESKTOP_DIMENSIONS = Function(
+    name="getDesktopDimensions",
+    description="Gets the width and height of the desktop on a display.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="number", name="display", description="The display index.", default="1"),
+            ],
+            returns=[
+                Return(type="number", name="width", description="The desktop width in pixels."),
+                Return(type="number", name="height", description="The desktop height in pixels."),
+            ]
+        )
+    ]
+)
+
+WINDOW_GET_DISPLAY_COUNT = Function(
+    name="getDisplayCount",
+    description="Gets the number of connected displays.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="number", name="count", description="The number of displays."),
+            ]
+        )
+    ]
+)
+
+WINDOW_GET_DISPLAY_NAME = Function(
+    name="getDisplayName",
+    description="Gets the name of a display.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="number", name="display", description="The display index.", default="1"),
+            ],
+            returns=[
+                Return(type="string", name="name", description="The display name."),
+            ]
+        )
+    ]
+)
+
+WINDOW_GET_DISPLAY_ORIENTATION = Function(
+    name="getDisplayOrientation",
+    description="Gets the orientation of a display.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="number", name="display", description="The display index.", default="1"),
+            ],
+            returns=[
+                Return(type="string", name="orientation", description="The display orientation."),
+            ]
+        )
+    ]
+)
+
 WINDOW_CLOSE = Function(
     name="close",
     description="Closes the window.",
@@ -2178,10 +3260,27 @@ WINDOW_MODULE = Module(
         WINDOW_GET_FULLSCREEN,
         WINDOW_SET_VSYNC,
         WINDOW_GET_VSYNC,
+        WINDOW_GET_DPI_SCALE,
+        WINDOW_TO_PIXELS,
+        WINDOW_FROM_PIXELS,
+        WINDOW_GET_DESKTOP_DIMENSIONS,
+        WINDOW_GET_DISPLAY_COUNT,
+        WINDOW_GET_DISPLAY_NAME,
+        WINDOW_GET_DISPLAY_ORIENTATION,
+        WINDOW_HAS_FOCUS,
+        WINDOW_HAS_MOUSE_FOCUS,
+        WINDOW_IS_DISPLAY_SLEEP_ENABLED,
+        WINDOW_SET_DISPLAY_SLEEP_ENABLED,
         WINDOW_SHOW_MESSAGE_BOX,
+        WINDOW_MAXIMIZE,
+        WINDOW_MINIMIZE,
+        WINDOW_RESTORE,
         WINDOW_CLOSE,
     ],
-    enums=[]
+    enums=[
+        WINDOW_FULLSCREEN_TYPE_ENUM,
+        WINDOW_MESSAGE_BOX_TYPE_ENUM,
+    ]
 )
 
 # ============================================================================
@@ -2230,6 +3329,34 @@ EVENT_CLEAR = Function(
     ]
 )
 
+EVENT_QUIT = Function(
+    name="quit",
+    description="Queues a quit event.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="number", name="exitstatus", description="The exit status code.", default="0"),
+            ]
+        )
+    ]
+)
+
+EVENT_PUSH = Function(
+    name="push",
+    description="Pushes an event onto the event queue.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="string", name="name", description="The name of the event."),
+                Argument(type="mixed", name="...", description="Additional event arguments.", default="nil"),
+            ],
+            returns=[
+                Return(type="boolean", name="success", description="True if successful."),
+            ]
+        )
+    ]
+)
+
 EVENT_MODULE = Module(
     name="event",
     description="Manages events like key presses.",
@@ -2239,6 +3366,8 @@ EVENT_MODULE = Module(
         EVENT_POLL,
         EVENT_WAIT,
         EVENT_CLEAR,
+        EVENT_QUIT,
+        EVENT_PUSH,
     ],
     enums=[]
 )
@@ -2246,6 +3375,86 @@ EVENT_MODULE = Module(
 # ============================================================================
 # Module: Filesystem
 # ============================================================================
+
+FILESYSTEM_FILE_MODE_ENUM = Enum(
+    name="FileMode",
+    description="FileMode constants.",
+    constants=[
+        EnumConstant(name="r", description=""),
+        EnumConstant(name="w", description=""),
+        EnumConstant(name="a", description=""),
+        EnumConstant(name="c", description=""),
+    ]
+)
+
+FILESYSTEM_FILE_TYPE_ENUM = Enum(
+    name="FileType",
+    description="FileType constants.",
+    constants=[
+        EnumConstant(name="file", description=""),
+        EnumConstant(name="directory", description=""),
+        EnumConstant(name="symlink", description=""),
+        EnumConstant(name="other", description=""),
+    ]
+)
+
+FILESYSTEM_BUFFER_MODE_ENUM = Enum(
+    name="BufferMode",
+    description="BufferMode constants.",
+    constants=[
+        EnumConstant(name="none", description=""),
+        EnumConstant(name="line", description=""),
+        EnumConstant(name="full", description=""),
+    ]
+)
+
+FILESYSTEM_FILE_TYPE = Type(
+    name="File",
+    description="File object.",
+    constructors=["newFile", "openFile"],
+    functions=[
+        Function(name="open", description="Method open.", variants=[]),
+        Function(name="close", description="Method close.", variants=[]),
+        Function(name="read", description="Method read.", variants=[]),
+        Function(name="write", description="Method write.", variants=[]),
+        Function(name="flush", description="Method flush.", variants=[]),
+        Function(name="isOpen", description="Method isOpen.", variants=[]),
+        Function(name="getSize", description="Method getSize.", variants=[]),
+        Function(name="getMode", description="Method getMode.", variants=[]),
+        Function(name="seek", description="Method seek.", variants=[]),
+        Function(name="tell", description="Method tell.", variants=[]),
+        Function(name="getFilename", description="Method getFilename.", variants=[]),
+        Function(name="getBuffer", description="Method getBuffer.", variants=[]),
+        Function(name="setBuffer", description="Method setBuffer.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
+
+FILESYSTEM_FILE_DATA_TYPE = Type(
+    name="FileData",
+    description="FileData object.",
+    constructors=["newFileData"],
+    functions=[
+        Function(name="getString", description="Method getString.", variants=[]),
+        Function(name="getFilename", description="Method getFilename.", variants=[]),
+        Function(name="getExtension", description="Method getExtension.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
+
+FILESYSTEM_DROPPED_FILE_TYPE = Type(
+    name="DroppedFile",
+    description="DroppedFile object.",
+    constructors=[],
+    functions=[
+        Function(name="open", description="Method open.", variants=[]),
+        Function(name="close", description="Method close.", variants=[]),
+        Function(name="read", description="Method read.", variants=[]),
+        Function(name="write", description="Method write.", variants=[]),
+        Function(name="isOpen", description="Method isOpen.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
 
 FILESYSTEM_READ = Function(
     name="read",
@@ -2511,10 +3720,182 @@ FILESYSTEM_GET_WORKING_DIRECTORY = Function(
     ]
 )
 
+FILESYSTEM_GET_EXECUTABLE_PATH = Function(
+    name="getExecutablePath",
+    description="Returns the path to the LÖVE executable.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="string", name="path", description="The full path to the executable."),
+            ]
+        )
+    ]
+)
+
+FILESYSTEM_GET_USER_DIRECTORY = Function(
+    name="getUserDirectory",
+    description="Gets the user's home directory.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="string", name="path", description="The user's home directory."),
+            ]
+        )
+    ]
+)
+
+FILESYSTEM_GET_REAL_DIRECTORY = Function(
+    name="getRealDirectory",
+    description="Gets the actual directory containing a file.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="string", name="filename", description="The filename to locate."),
+            ],
+            returns=[
+                Return(type="string", name="dir", description="The real directory containing the file, or nil."),
+            ]
+        )
+    ]
+)
+
+FILESYSTEM_NEW_FILE = Function(
+    name="newFile",
+    description="Creates a new File object.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="string", name="filename", description="The filename of the File."),
+            ],
+            returns=[
+                Return(type="File", name="file", description="The created File object."),
+            ]
+        )
+    ]
+)
+
+FILESYSTEM_OPEN_FILE = Function(
+    name="openFile",
+    description="Opens a File object for the given path.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="string", name="filename", description="The filename to open."),
+                Argument(type="FileMode", name="mode", description="The open mode.", default="r"),
+            ],
+            returns=[
+                Return(type="File", name="file", description="The opened File object."),
+            ]
+        )
+    ]
+)
+
+FILESYSTEM_NEW_FILE_DATA = Function(
+    name="newFileData",
+    description="Creates a new FileData object.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="string", name="contents", description="The contents of the file."),
+                Argument(type="string", name="filename", description="The name of the FileData."),
+                Argument(type="string", name="decoder", description="Optional decoder.", default="nil"),
+            ],
+            returns=[
+                Return(type="FileData", name="filedata", description="The created FileData."),
+            ]
+        ),
+        Variant(
+            arguments=[
+                Argument(type="File", name="file", description="A File to read from."),
+                Argument(type="string", name="filename", description="The name of the FileData."),
+            ],
+            returns=[
+                Return(type="FileData", name="filedata", description="The created FileData."),
+            ]
+        ),
+    ]
+)
+
+FILESYSTEM_MOUNT = Function(
+    name="mount",
+    description="Mounts a zip file or directory as the game's filesystem.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="string", name="archive", description="The path to the archive or directory."),
+                Argument(type="string", name="mountpoint", description="The mount point inside the virtual filesystem."),
+                Argument(type="boolean", name="appendToPath", description="Whether to append to the search path.", default="false"),
+            ],
+            returns=[
+                Return(type="boolean", name="success", description="True if successful."),
+            ]
+        )
+    ]
+)
+
+FILESYSTEM_UNMOUNT = Function(
+    name="unmount",
+    description="Unmounts a previously mounted archive or directory.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="string", name="archive", description="The path to the archive or directory."),
+            ],
+            returns=[
+                Return(type="boolean", name="success", description="True if successful."),
+            ]
+        )
+    ]
+)
+
+FILESYSTEM_LOAD = Function(
+    name="load",
+    description="Loads a Lua file and returns it as a function.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="string", name="filename", description="The filename to load."),
+            ],
+            returns=[
+                Return(type="function", name="chunk", description="The loaded chunk, or nil on failure."),
+                Return(type="string", name="errormsg", description="The error message on failure."),
+            ]
+        )
+    ]
+)
+
+FILESYSTEM_IS_FUSED = Function(
+    name="isFused",
+    description="Gets whether the game is fused.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="boolean", name="fused", description="True if fused."),
+            ]
+        )
+    ]
+)
+
+FILESYSTEM_SET_FUSED = Function(
+    name="setFused",
+    description="Sets whether the game is fused.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="boolean", name="fused", description="Whether the game should be fused."),
+            ]
+        )
+    ]
+)
+
 FILESYSTEM_MODULE = Module(
     name="filesystem",
     description="Provides an interface to the user's filesystem.",
-    types=[],
+    types=[
+        FILESYSTEM_FILE_TYPE,
+        FILESYSTEM_FILE_DATA_TYPE,
+        FILESYSTEM_DROPPED_FILE_TYPE,
+    ],
     functions=[
         FILESYSTEM_READ,
         FILESYSTEM_WRITE,
@@ -2533,13 +3914,103 @@ FILESYSTEM_MODULE = Module(
         FILESYSTEM_GET_SOURCE,
         FILESYSTEM_GET_SOURCE_BASE_DIRECTORY,
         FILESYSTEM_GET_WORKING_DIRECTORY,
+        FILESYSTEM_GET_EXECUTABLE_PATH,
+        FILESYSTEM_GET_USER_DIRECTORY,
+        FILESYSTEM_GET_REAL_DIRECTORY,
+        FILESYSTEM_IS_FUSED,
+        FILESYSTEM_SET_FUSED,
+        FILESYSTEM_LOAD,
+        FILESYSTEM_MOUNT,
+        FILESYSTEM_UNMOUNT,
+        FILESYSTEM_NEW_FILE,
+        FILESYSTEM_OPEN_FILE,
+        FILESYSTEM_NEW_FILE_DATA,
     ],
-    enums=[]
+    enums=[
+        FILESYSTEM_FILE_MODE_ENUM,
+        FILESYSTEM_FILE_TYPE_ENUM,
+        FILESYSTEM_BUFFER_MODE_ENUM,
+    ]
 )
 
 # ============================================================================
 # Module: Audio
 # ============================================================================
+
+AUDIO_SOURCE_TYPE_ENUM = Enum(
+    name="SourceType",
+    description="SourceType constants.",
+    constants=[
+        EnumConstant(name="static", description=""),
+        EnumConstant(name="stream", description=""),
+        EnumConstant(name="queue", description=""),
+    ]
+)
+
+AUDIO_TIME_UNIT_ENUM = Enum(
+    name="TimeUnit",
+    description="TimeUnit constants.",
+    constants=[
+        EnumConstant(name="seconds", description=""),
+        EnumConstant(name="samples", description=""),
+    ]
+)
+
+AUDIO_DISTANCE_MODEL_ENUM = Enum(
+    name="DistanceModel",
+    description="DistanceModel constants.",
+    constants=[
+        EnumConstant(name="none", description=""),
+        EnumConstant(name="inverse", description=""),
+        EnumConstant(name="inverseclamped", description=""),
+        EnumConstant(name="linear", description=""),
+        EnumConstant(name="linearclamped", description=""),
+        EnumConstant(name="exponent", description=""),
+        EnumConstant(name="exponentclamped", description=""),
+    ]
+)
+
+AUDIO_SOURCE_TYPE = Type(
+    name="Source",
+    description="Audio Source object.",
+    constructors=["newSource"],
+    functions=[
+        Function(name="play", description="Method play.", variants=[]),
+        Function(name="stop", description="Method stop.", variants=[]),
+        Function(name="pause", description="Method pause.", variants=[]),
+        Function(name="resume", description="Method resume.", variants=[]),
+        Function(name="rewind", description="Method rewind.", variants=[]),
+        Function(name="isPlaying", description="Method isPlaying.", variants=[]),
+        Function(name="isPaused", description="Method isPaused.", variants=[]),
+        Function(name="isStopped", description="Method isStopped.", variants=[]),
+        Function(name="setVolume", description="Method setVolume.", variants=[]),
+        Function(name="getVolume", description="Method getVolume.", variants=[]),
+        Function(name="setPitch", description="Method setPitch.", variants=[]),
+        Function(name="getPitch", description="Method getPitch.", variants=[]),
+        Function(name="setLooping", description="Method setLooping.", variants=[]),
+        Function(name="isLooping", description="Method isLooping.", variants=[]),
+        Function(name="setPosition", description="Method setPosition.", variants=[]),
+        Function(name="getPosition", description="Method getPosition.", variants=[]),
+        Function(name="setVelocity", description="Method setVelocity.", variants=[]),
+        Function(name="getVelocity", description="Method getVelocity.", variants=[]),
+        Function(name="seek", description="Method seek.", variants=[]),
+        Function(name="tell", description="Method tell.", variants=[]),
+        Function(name="getDuration", description="Method getDuration.", variants=[]),
+        Function(name="setVolumeLimits", description="Method setVolumeLimits.", variants=[]),
+        Function(name="getVolumeLimits", description="Method getVolumeLimits.", variants=[]),
+        Function(name="setAttenuationDistances", description="Method setAttenuationDistances.", variants=[]),
+        Function(name="getAttenuationDistances", description="Method getAttenuationDistances.", variants=[]),
+        Function(name="setRolloff", description="Method setRolloff.", variants=[]),
+        Function(name="getRolloff", description="Method getRolloff.", variants=[]),
+        Function(name="setCone", description="Method setCone.", variants=[]),
+        Function(name="getCone", description="Method getCone.", variants=[]),
+        Function(name="setDirection", description="Method setDirection.", variants=[]),
+        Function(name="getDirection", description="Method getDirection.", variants=[]),
+        Function(name="setRelative", description="Method setRelative.", variants=[]),
+        Function(name="isRelative", description="Method isRelative.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
 
 AUDIO_NEW_SOURCE = Function(
     name="newSource",
@@ -2686,10 +4157,180 @@ AUDIO_GET_POSITION = Function(
     ]
 )
 
+AUDIO_SET_VELOCITY = Function(
+    name="setVelocity",
+    description="Sets the velocity of the listener.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="number", name="x", description="The x velocity."),
+                Argument(type="number", name="y", description="The y velocity."),
+                Argument(type="number", name="z", description="The z velocity.", default="0"),
+            ]
+        )
+    ]
+)
+
+AUDIO_GET_VELOCITY = Function(
+    name="getVelocity",
+    description="Gets the velocity of the listener.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="number", name="x", description="The x velocity."),
+                Return(type="number", name="y", description="The y velocity."),
+                Return(type="number", name="z", description="The z velocity."),
+            ]
+        )
+    ]
+)
+
+AUDIO_SET_ORIENTATION = Function(
+    name="setOrientation",
+    description="Sets the orientation of the listener.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="number", name="fx", description="The forward vector x component."),
+                Argument(type="number", name="fy", description="The forward vector y component."),
+                Argument(type="number", name="fz", description="The forward vector z component."),
+                Argument(type="number", name="ux", description="The up vector x component."),
+                Argument(type="number", name="uy", description="The up vector y component."),
+                Argument(type="number", name="uz", description="The up vector z component."),
+            ]
+        )
+    ]
+)
+
+AUDIO_GET_ORIENTATION = Function(
+    name="getOrientation",
+    description="Gets the orientation of the listener.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="number", name="fx", description="The forward vector x component."),
+                Return(type="number", name="fy", description="The forward vector y component."),
+                Return(type="number", name="fz", description="The forward vector z component."),
+                Return(type="number", name="ux", description="The up vector x component."),
+                Return(type="number", name="uy", description="The up vector y component."),
+                Return(type="number", name="uz", description="The up vector z component."),
+            ]
+        )
+    ]
+)
+
+AUDIO_SET_DISTANCE_MODEL = Function(
+    name="setDistanceModel",
+    description="Sets the distance attenuation model.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="DistanceModel", name="model", description="The distance model."),
+            ]
+        )
+    ]
+)
+
+AUDIO_GET_DISTANCE_MODEL = Function(
+    name="getDistanceModel",
+    description="Gets the distance attenuation model.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="DistanceModel", name="model", description="The current distance model."),
+            ]
+        )
+    ]
+)
+
+AUDIO_GET_SOURCE_COUNT = Function(
+    name="getSourceCount",
+    description="Gets the total number of Sources.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="number", name="count", description="The total number of Sources."),
+            ]
+        )
+    ]
+)
+
+AUDIO_GET_ACTIVE_SOURCE_COUNT = Function(
+    name="getActiveSourceCount",
+    description="Gets the number of actively playing Sources.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="number", name="count", description="The number of active Sources."),
+            ]
+        )
+    ]
+)
+
+AUDIO_SET_EFFECT = Function(
+    name="setEffect",
+    description="Sets an audio effect.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="string", name="name", description="The name of the effect."),
+                Argument(type="table", name="settings", description="Effect settings, or nil to disable.", default="nil"),
+            ],
+            returns=[
+                Return(type="boolean", name="success", description="True if successful."),
+            ]
+        )
+    ]
+)
+
+AUDIO_GET_EFFECT = Function(
+    name="getEffect",
+    description="Gets the settings of an audio effect.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="string", name="name", description="The name of the effect."),
+            ],
+            returns=[
+                Return(type="table", name="settings", description="The effect settings, or nil."),
+            ]
+        )
+    ]
+)
+
+AUDIO_REMOVE_EFFECT = Function(
+    name="removeEffect",
+    description="Removes an audio effect.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="string", name="name", description="The name of the effect."),
+            ],
+            returns=[
+                Return(type="boolean", name="success", description="True if successful."),
+            ]
+        )
+    ]
+)
+
+AUDIO_GET_RECORDING_DEVICES = Function(
+    name="getRecordingDevices",
+    description="Gets available audio recording devices.",
+    variants=[
+        Variant(
+            returns=[
+                Return(type="table", name="devices", description="A table of recording devices."),
+            ]
+        )
+    ]
+)
+
 AUDIO_MODULE = Module(
     name="audio",
     description="Provides an interface to output audio to the user's speakers.",
-    types=[],
+    types=[
+        AUDIO_SOURCE_TYPE,
+    ],
     functions=[
         AUDIO_NEW_SOURCE,
         AUDIO_PLAY,
@@ -2701,13 +4342,79 @@ AUDIO_MODULE = Module(
         AUDIO_GET_VOLUME,
         AUDIO_SET_POSITION,
         AUDIO_GET_POSITION,
+        AUDIO_SET_VELOCITY,
+        AUDIO_GET_VELOCITY,
+        AUDIO_SET_ORIENTATION,
+        AUDIO_GET_ORIENTATION,
+        AUDIO_SET_DISTANCE_MODEL,
+        AUDIO_GET_DISTANCE_MODEL,
+        AUDIO_GET_SOURCE_COUNT,
+        AUDIO_GET_ACTIVE_SOURCE_COUNT,
+        AUDIO_SET_EFFECT,
+        AUDIO_GET_EFFECT,
+        AUDIO_REMOVE_EFFECT,
+        AUDIO_GET_RECORDING_DEVICES,
     ],
-    enums=[]
+    enums=[
+        AUDIO_SOURCE_TYPE_ENUM,
+        AUDIO_TIME_UNIT_ENUM,
+        AUDIO_DISTANCE_MODEL_ENUM,
+    ]
 )
 
 # ============================================================================
 # Module: Math
 # ============================================================================
+
+MATH_TRANSFORM_TYPE = Type(
+    name="Transform",
+    description="Transform object.",
+    constructors=["newTransform"],
+    functions=[
+        Function(name="setTransformation", description="Method setTransformation.", variants=[]),
+        Function(name="translate", description="Method translate.", variants=[]),
+        Function(name="rotate", description="Method rotate.", variants=[]),
+        Function(name="scale", description="Method scale.", variants=[]),
+        Function(name="shear", description="Method shear.", variants=[]),
+        Function(name="apply", description="Method apply.", variants=[]),
+        Function(name="reset", description="Method reset.", variants=[]),
+        Function(name="inverse", description="Method inverse.", variants=[]),
+        Function(name="clone", description="Method clone.", variants=[]),
+        Function(name="getMatrix", description="Method getMatrix.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
+
+MATH_BEZIER_CURVE_TYPE = Type(
+    name="BezierCurve",
+    description="BezierCurve object.",
+    constructors=["newBezierCurve"],
+    functions=[
+        Function(name="getDegree", description="Method getDegree.", variants=[]),
+        Function(name="getControlPoint", description="Method getControlPoint.", variants=[]),
+        Function(name="setControlPoint", description="Method setControlPoint.", variants=[]),
+        Function(name="insertControlPoint", description="Method insertControlPoint.", variants=[]),
+        Function(name="removeControlPoint", description="Method removeControlPoint.", variants=[]),
+        Function(name="getDerivative", description="Method getDerivative.", variants=[]),
+        Function(name="getSegment", description="Method getSegment.", variants=[]),
+        Function(name="render", description="Method render.", variants=[]),
+        Function(name="renderSegment", description="Method renderSegment.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
+
+MATH_RANDOM_GENERATOR_TYPE = Type(
+    name="RandomGenerator",
+    description="RandomGenerator object.",
+    constructors=["newRandomGenerator"],
+    functions=[
+        Function(name="random", description="Method random.", variants=[]),
+        Function(name="setSeed", description="Method setSeed.", variants=[]),
+        Function(name="getSeed", description="Method getSeed.", variants=[]),
+        Function(name="randomNormal", description="Method randomNormal.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
 
 MATH_NEW_RANDOM_GENERATOR = Function(
     name="newRandomGenerator",
@@ -2938,10 +4645,59 @@ MATH_TRIANGULATE = Function(
     ]
 )
 
+MATH_NOISE = Function(
+    name="noise",
+    description="Generates a simplex noise value.",
+    variants=[
+        Variant(
+            arguments=[
+                Argument(type="number", name="x", description="The x coordinate."),
+            ],
+            returns=[
+                Return(type="number", name="value", description="The noise value."),
+            ]
+        ),
+        Variant(
+            arguments=[
+                Argument(type="number", name="x", description="The x coordinate."),
+                Argument(type="number", name="y", description="The y coordinate."),
+            ],
+            returns=[
+                Return(type="number", name="value", description="The noise value."),
+            ]
+        ),
+        Variant(
+            arguments=[
+                Argument(type="number", name="x", description="The x coordinate."),
+                Argument(type="number", name="y", description="The y coordinate."),
+                Argument(type="number", name="z", description="The z coordinate."),
+            ],
+            returns=[
+                Return(type="number", name="value", description="The noise value."),
+            ]
+        ),
+        Variant(
+            arguments=[
+                Argument(type="number", name="x", description="The x coordinate."),
+                Argument(type="number", name="y", description="The y coordinate."),
+                Argument(type="number", name="z", description="The z coordinate."),
+                Argument(type="number", name="w", description="The w coordinate."),
+            ],
+            returns=[
+                Return(type="number", name="value", description="The noise value."),
+            ]
+        ),
+    ]
+)
+
 MATH_MODULE = Module(
     name="math",
     description="Provides system-independent mathematical functions.",
-    types=[],
+    types=[
+        MATH_TRANSFORM_TYPE,
+        MATH_BEZIER_CURVE_TYPE,
+        MATH_RANDOM_GENERATOR_TYPE,
+    ],
     functions=[
         MATH_NEW_RANDOM_GENERATOR,
         MATH_RANDOM,
@@ -2954,6 +4710,7 @@ MATH_MODULE = Module(
         MATH_LINEAR_TO_GAMMA,
         MATH_IS_CONVEX,
         MATH_TRIANGULATE,
+        MATH_NOISE,
     ],
     enums=[]
 )
@@ -3017,6 +4774,224 @@ TOUCH_MODULE = Module(
     enums=[]
 )
 
+JOYSTICK_GAMEPAD_AXIS_ENUM = Enum(
+    name="GamepadAxis",
+    description="GamepadAxis constants.",
+    constants=[
+        EnumConstant(name="leftx", description=""),
+        EnumConstant(name="lefty", description=""),
+        EnumConstant(name="rightx", description=""),
+        EnumConstant(name="righty", description=""),
+        EnumConstant(name="triggerleft", description=""),
+        EnumConstant(name="triggerright", description=""),
+    ]
+)
+
+JOYSTICK_GAMEPAD_BUTTON_ENUM = Enum(
+    name="GamepadButton",
+    description="GamepadButton constants.",
+    constants=[
+        EnumConstant(name="a", description=""),
+        EnumConstant(name="b", description=""),
+        EnumConstant(name="x", description=""),
+        EnumConstant(name="y", description=""),
+        EnumConstant(name="back", description=""),
+        EnumConstant(name="guide", description=""),
+        EnumConstant(name="start", description=""),
+        EnumConstant(name="leftstick", description=""),
+        EnumConstant(name="rightstick", description=""),
+        EnumConstant(name="leftshoulder", description=""),
+        EnumConstant(name="rightshoulder", description=""),
+        EnumConstant(name="dpup", description=""),
+        EnumConstant(name="dpdown", description=""),
+        EnumConstant(name="dpleft", description=""),
+        EnumConstant(name="dpright", description=""),
+    ]
+)
+
+JOYSTICK_HAT_ENUM = Enum(
+    name="JoystickHat",
+    description="JoystickHat constants.",
+    constants=[
+        EnumConstant(name="c", description=""),
+        EnumConstant(name="u", description=""),
+        EnumConstant(name="r", description=""),
+        EnumConstant(name="d", description=""),
+        EnumConstant(name="lu", description=""),
+        EnumConstant(name="ru", description=""),
+        EnumConstant(name="ld", description=""),
+        EnumConstant(name="rd", description=""),
+    ]
+)
+
+JOYSTICK_INPUT_TYPE_ENUM = Enum(
+    name="JoystickInputType",
+    description="JoystickInputType constants.",
+    constants=[
+        EnumConstant(name="axis", description=""),
+        EnumConstant(name="button", description=""),
+        EnumConstant(name="hat", description=""),
+    ]
+)
+
+JOYSTICK_TYPE = Type(
+    name="Joystick",
+    description="Joystick object.",
+    constructors=[],
+    functions=[
+        Function(name="getName", description="Method getName.", variants=[]),
+        Function(name="isConnected", description="Method isConnected.", variants=[]),
+        Function(name="getID", description="Method getID.", variants=[]),
+        Function(name="getGUID", description="Method getGUID.", variants=[]),
+        Function(name="getAxisCount", description="Method getAxisCount.", variants=[]),
+        Function(name="getButtonCount", description="Method getButtonCount.", variants=[]),
+        Function(name="getHatCount", description="Method getHatCount.", variants=[]),
+        Function(name="getAxis", description="Method getAxis.", variants=[]),
+        Function(name="getAxes", description="Method getAxes.", variants=[]),
+        Function(name="getHat", description="Method getHat.", variants=[]),
+        Function(name="isDown", description="Method isDown.", variants=[]),
+        Function(name="setVibration", description="Method setVibration.", variants=[]),
+        Function(name="getVibration", description="Method getVibration.", variants=[]),
+        Function(name="hasSensor", description="Method hasSensor.", variants=[]),
+        Function(name="isSensorEnabled", description="Method isSensorEnabled.", variants=[]),
+        Function(name="setSensorEnabled", description="Method setSensorEnabled.", variants=[]),
+        Function(name="getSensorData", description="Method getSensorData.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
+
+JOYSTICK_MODULE = Module(
+    name="joystick",
+    description="Provides an interface to gamepads and joysticks.",
+    types=[
+        JOYSTICK_TYPE,
+    ],
+    functions=[],
+    enums=[
+        JOYSTICK_GAMEPAD_AXIS_ENUM,
+        JOYSTICK_GAMEPAD_BUTTON_ENUM,
+        JOYSTICK_HAT_ENUM,
+        JOYSTICK_INPUT_TYPE_ENUM,
+    ]
+)
+
+IMAGE_PIXEL_FORMAT_ENUM = Enum(
+    name="PixelFormat",
+    description="PixelFormat constants.",
+    constants=[
+        EnumConstant(name="normal", description=""),
+        EnumConstant(name="r8", description=""),
+        EnumConstant(name="rg8", description=""),
+        EnumConstant(name="rgba8", description=""),
+        EnumConstant(name="srgba8", description=""),
+        EnumConstant(name="r16", description=""),
+        EnumConstant(name="rg16", description=""),
+        EnumConstant(name="rgba16", description=""),
+        EnumConstant(name="r16f", description=""),
+        EnumConstant(name="rg16f", description=""),
+        EnumConstant(name="rgba16f", description=""),
+        EnumConstant(name="r32f", description=""),
+        EnumConstant(name="rg32f", description=""),
+        EnumConstant(name="rgba32f", description=""),
+        EnumConstant(name="la8", description=""),
+        EnumConstant(name="rgba4", description=""),
+        EnumConstant(name="rgb5a1", description=""),
+        EnumConstant(name="rgb565", description=""),
+        EnumConstant(name="rgb10a2", description=""),
+        EnumConstant(name="rg11b10f", description=""),
+    ]
+)
+
+IMAGE_IMAGE_DATA_TYPE = Type(
+    name="ImageData",
+    description="ImageData object.",
+    constructors=[],
+    functions=[
+        Function(name="getWidth", description="Method getWidth.", variants=[]),
+        Function(name="getHeight", description="Method getHeight.", variants=[]),
+        Function(name="getDimensions", description="Method getDimensions.", variants=[]),
+        Function(name="getFormat", description="Method getFormat.", variants=[]),
+        Function(name="setPixel", description="Method setPixel.", variants=[]),
+        Function(name="getPixel", description="Method getPixel.", variants=[]),
+        Function(name="paste", description="Method paste.", variants=[]),
+        Function(name="encode", description="Method encode.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
+
+IMAGE_COMPRESSED_IMAGE_DATA_TYPE = Type(
+    name="CompressedImageData",
+    description="CompressedImageData object.",
+    constructors=[],
+    functions=[
+        Function(name="getWidth", description="Method getWidth.", variants=[]),
+        Function(name="getHeight", description="Method getHeight.", variants=[]),
+        Function(name="getDimensions", description="Method getDimensions.", variants=[]),
+        Function(name="getFormat", description="Method getFormat.", variants=[]),
+        Function(name="getMipmapCount", description="Method getMipmapCount.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
+
+IMAGE_MODULE = Module(
+    name="image",
+    description="Provides image data types.",
+    types=[
+        IMAGE_IMAGE_DATA_TYPE,
+        IMAGE_COMPRESSED_IMAGE_DATA_TYPE,
+    ],
+    functions=[],
+    enums=[
+        IMAGE_PIXEL_FORMAT_ENUM,
+    ]
+)
+
+SOUND_SOUND_DATA_TYPE = Type(
+    name="SoundData",
+    description="SoundData object.",
+    constructors=[],
+    functions=[
+        Function(name="getSample", description="Method getSample.", variants=[]),
+        Function(name="setSample", description="Method setSample.", variants=[]),
+        Function(name="getSampleRate", description="Method getSampleRate.", variants=[]),
+        Function(name="getBitDepth", description="Method getBitDepth.", variants=[]),
+        Function(name="getChannelCount", description="Method getChannelCount.", variants=[]),
+        Function(name="getDuration", description="Method getDuration.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
+
+SOUND_MODULE = Module(
+    name="sound",
+    description="Provides sound data types.",
+    types=[
+        SOUND_SOUND_DATA_TYPE,
+    ],
+    functions=[],
+    enums=[]
+)
+
+DATA_COMPRESSED_DATA_TYPE = Type(
+    name="CompressedData",
+    description="CompressedData object.",
+    constructors=[],
+    functions=[
+        Function(name="getFormat", description="Method getFormat.", variants=[]),
+        Function(name="decompress", description="Method decompress.", variants=[]),
+    ],
+    supertypes=["Object"]
+)
+
+DATA_MODULE = Module(
+    name="data",
+    description="Provides data container types.",
+    types=[
+        DATA_COMPRESSED_DATA_TYPE,
+    ],
+    functions=[],
+    enums=[]
+)
+
 # ============================================================================
 # Main API
 # ============================================================================
@@ -3033,6 +5008,7 @@ API = LoveAPI(
         GRAPHICS_MODULE,
         KEYBOARD_MODULE,
         MOUSE_MODULE,
+        JOYSTICK_MODULE,
         TIMER_MODULE,
         WINDOW_MODULE,
         EVENT_MODULE,
@@ -3040,6 +5016,9 @@ API = LoveAPI(
         AUDIO_MODULE,
         MATH_MODULE,
         TOUCH_MODULE,
+        DATA_MODULE,
+        IMAGE_MODULE,
+        SOUND_MODULE,
     ],
     types=[],  # Global types
     callbacks=[

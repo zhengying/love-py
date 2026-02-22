@@ -1111,6 +1111,101 @@ static PyObject* graphics_drawImage(PyObject* self, PyObject* args, PyObject* kw
     Py_RETURN_NONE;
 }
 
+static PyObject* graphics_drawImageRegion(PyObject* self, PyObject* args, PyObject* kwargs) {
+    PyObject* image_obj;
+    float src_x = 0.0f;
+    float src_y = 0.0f;
+    float src_w = 0.0f;
+    float src_h = 0.0f;
+    float x = 0.0f;
+    float y = 0.0f;
+    float r = 0.0f;
+    float scale_x = 1.0f;
+    float scale_y = 1.0f;
+    float ox = 0.0f;
+    float oy = 0.0f;
+
+    static const char* kwlist[] = {
+        "image",
+        "sx",
+        "sy",
+        "sw",
+        "sh",
+        "x",
+        "y",
+        "r",
+        "scale_x",
+        "scale_y",
+        "ox",
+        "oy",
+        nullptr
+    };
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Offff|fffffff", (char**)kwlist,
+                                     &image_obj, &src_x, &src_y, &src_w, &src_h,
+                                     &x, &y, &r, &scale_x, &scale_y, &ox, &oy)) {
+        return nullptr;
+    }
+
+    if (src_w <= 0.0f || src_h <= 0.0f) {
+        PyErr_SetString(PyExc_ValueError, "Source width and height must be positive");
+        return nullptr;
+    }
+
+    GLuint texture_id = 0;
+    int drawable_width = 0;
+    int drawable_height = 0;
+    if (PyObject_TypeCheck(image_obj, &ImageType)) {
+        ImageObject* img = (ImageObject*)image_obj;
+        texture_id = img->texture_id;
+        drawable_width = img->width;
+        drawable_height = img->height;
+    } else if (PyObject_TypeCheck(image_obj, &CanvasType)) {
+        CanvasObject* canvas = (CanvasObject*)image_obj;
+        texture_id = canvas->texture_id;
+        drawable_width = canvas->width;
+        drawable_height = canvas->height;
+    } else {
+        PyErr_SetString(PyExc_TypeError, "Expected Image or Canvas object");
+        return nullptr;
+    }
+
+    if (drawable_width <= 0 || drawable_height <= 0) {
+        PyErr_SetString(PyExc_RuntimeError, "Drawable has invalid dimensions");
+        return nullptr;
+    }
+
+    float u0 = src_x / (float)drawable_width;
+    float v0 = src_y / (float)drawable_height;
+    float u1 = (src_x + src_w) / (float)drawable_width;
+    float v1 = (src_y + src_h) / (float)drawable_height;
+
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, texture_id);
+
+    glPushMatrix();
+    glTranslatef(x, y, 0.0f);
+    glRotatef(r * 180.0f / 3.14159f, 0.0f, 0.0f, 1.0f);
+    glScalef(scale_x, scale_y, 1.0f);
+    glTranslatef(-ox, -oy, 0.0f);
+
+    float w = src_w;
+    float h = src_h;
+
+    glBegin(GL_QUADS);
+    glTexCoord2f(u0, v0); glVertex2f(0.0f, 0.0f);
+    glTexCoord2f(u1, v0); glVertex2f(w, 0.0f);
+    glTexCoord2f(u1, v1); glVertex2f(w, h);
+    glTexCoord2f(u0, v1); glVertex2f(0.0f, h);
+    glEnd();
+
+    glPopMatrix();
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDisable(GL_TEXTURE_2D);
+
+    Py_RETURN_NONE;
+}
+
 static PyObject* graphics_newCanvas(PyObject* self, PyObject* args) {
     int width = 0;
     int height = 0;
@@ -1386,6 +1481,7 @@ static PyMethodDef GraphicsMethods[] = {
     {"getHeight", graphics_getHeight, METH_NOARGS, "Get screen height"},
     {"getDimensions", graphics_getDimensions, METH_NOARGS, "Get screen dimensions"},
     {"drawImage", (PyCFunction)graphics_drawImage, METH_VARARGS | METH_KEYWORDS, "Draw image (image, x=0, y=0, r=0, sx=1, sy=1, ox=0, oy=0)"},
+    {"drawImageRegion", (PyCFunction)graphics_drawImageRegion, METH_VARARGS | METH_KEYWORDS, "Draw image region (image, sx, sy, sw, sh, x=0, y=0, r=0, scale_x=1, scale_y=1, ox=0, oy=0)"},
     {"print", graphics_print, METH_VARARGS, "Print text (text, x, y, r=0, sx=1, sy=1)"},
     {"setFont", graphics_setFont, METH_VARARGS, "Set current font"},
     {"getFont", graphics_getFont, METH_NOARGS, "Get current font"},
