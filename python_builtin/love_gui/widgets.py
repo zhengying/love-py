@@ -311,6 +311,25 @@ class TextInput(Widget):
 
     def set_focused(self, focused: bool) -> None:
         self._focused = focused
+        if focused:
+            self.cursor = _clamp(self.cursor, 0, len(self.text))
+        if not focused and not self.text:
+            self._scroll_x = 0.0
+
+    def _cursor_index_from_x(self, font: Any, x: float) -> int:
+        if not self.text:
+            return 0
+        pos = 0.0
+        best_i = 0
+        target = max(0.0, x)
+        for i, ch in enumerate(self.text):
+            w = float(font.getWidth(ch))
+            if pos + w * 0.5 >= target:
+                best_i = i
+                break
+            pos += w
+            best_i = i + 1
+        return int(_clamp(best_i, 0, len(self.text)))
 
     def _cursor_x(self, font: Any) -> float:
         if self.cursor <= 0:
@@ -336,42 +355,27 @@ class TextInput(Widget):
         text_y = inner.y + pad_y
         prev_scissor = _push_scissor(love, inner.x, inner.y, inner.w, inner.h)
 
+        avail = max(0.0, inner.w - pad_x * 2.0)
+        text_w = float(theme.font.getWidth(self.text)) if self.text else 0.0
+        cursor_px = float(theme.font.getWidth(self.text[: self.cursor])) if self.text else 0.0
+
+        if self._focused:
+            if cursor_px - self._scroll_x > avail:
+                self._scroll_x = cursor_px - avail + 2.0
+            if cursor_px - self._scroll_x < 0.0:
+                self._scroll_x = max(0.0, cursor_px - 2.0)
+            self._scroll_x = _clamp(self._scroll_x, 0.0, max(0.0, text_w - avail))
+        else:
+            self._scroll_x = max(0.0, text_w - avail)
+
         if self.text:
-            text_w = float(theme.font.getWidth(self.text))
-            avail = max(0.0, inner.w - pad_x * 2.0)
-            cursor_px = float(theme.font.getWidth(self.text[: self.cursor]))
-
-            if self._focused:
-                if cursor_px - self._scroll_x > avail:
-                    self._scroll_x = cursor_px - avail + 2.0
-                if cursor_px - self._scroll_x < 0.0:
-                    self._scroll_x = max(0.0, cursor_px - 2.0)
-                self._scroll_x = _clamp(self._scroll_x, 0.0, max(0.0, text_w - avail))
-            else:
-                self._scroll_x = max(0.0, text_w - avail)
-
             love.graphics.setColor(*theme.text_color)
             love.graphics.print(
                 self.text,
                 _round_half_up(inner.x + pad_x - self._scroll_x),
                 _round_half_up(text_y),
             )
-
-            if self._focused:
-                t = float(love.timer.getTime())
-                on = int(t * 2) % 2 == 0
-                if on:
-                    cx = inner.x + pad_x - self._scroll_x + cursor_px
-                    love.graphics.setColor(*theme.text_color)
-                    cursor_h = min(inner.h, max(1.0, line_h))
-                    love.graphics.rectangle(
-                        "fill",
-                        _round_half_up(cx),
-                        _round_half_up(text_y),
-                        2,
-                        cursor_h,
-                    )
-        else:
+        elif not self._focused:
             self._scroll_x = 0.0
             love.graphics.setColor(*theme.text_muted)
             love.graphics.print(
@@ -380,11 +384,27 @@ class TextInput(Widget):
                 _round_half_up(text_y),
             )
 
+        if self._focused:
+            t = float(love.timer.getTime())
+            on = int(t * 2) % 2 == 0
+            if on:
+                cx = inner.x + pad_x - self._scroll_x + cursor_px
+                love.graphics.setColor(*theme.text_color)
+                cursor_h = min(inner.h, max(1.0, line_h))
+                love.graphics.rectangle(
+                    "fill",
+                    _round_half_up(cx),
+                    _round_half_up(text_y),
+                    2,
+                    cursor_h,
+                )
+
         _pop_scissor(love, prev_scissor)
 
     def on_mousepressed(self, x: float, y: float, button: int, presses: int) -> bool:
         if button != 1:
             return False
+        self.cursor = len(self.text)
         return True
 
     def on_keypressed(self, key: str, scancode: Any, isrepeat: bool) -> bool:
