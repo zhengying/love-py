@@ -5,18 +5,13 @@ import love
 
 
 def _import_love_gui():
-    try:
-        import love_gui
+    base = os.path.dirname(os.path.abspath(__file__))
+    builtin = os.path.abspath(os.path.join(base, "..", "python_builtin"))
+    if builtin not in sys.path:
+        sys.path.insert(0, builtin)
+    import love_gui
 
-        return love_gui
-    except Exception:
-        base = os.path.dirname(os.path.abspath(__file__))
-        builtin = os.path.abspath(os.path.join(base, "..", "python_builtin"))
-        if builtin not in sys.path:
-            sys.path.insert(0, builtin)
-        import love_gui
-
-        return love_gui
+    return love_gui
 
 
 love_gui = _import_love_gui()

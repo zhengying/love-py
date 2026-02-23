@@ -413,6 +413,13 @@ class ScrollView(Container):
         self.scroll_x = 0.0
         self.scroll_y = 0.0
         self.scroll_speed = 38.0
+        self.scrollbar_width = 12.0
+        self._sb_hover = False
+        self._sb_dragging = False
+        self._sb_drag_offset = 0.0
+        self._sb_thumb_y = 0.0
+        self._sb_thumb_h = 0.0
+        self._sb_track_rect: Rect | None = None
 
     def content_bounds(self) -> Rect:
         if not self.children:
@@ -430,16 +437,111 @@ class ScrollView(Container):
         self.scroll_x = _clamp(self.scroll_x, 0.0, max_x)
         self.scroll_y = _clamp(self.scroll_y, 0.0, max_y)
 
+    def _update_scrollbar_geometry(self) -> None:
+        view = self.abs_rect()
+        bounds = self.content_bounds()
+        max_y = max(0.0, bounds.h - self.rect.h)
+        if max_y <= 0.0 or view.h <= 0.0:
+            self._sb_track_rect = None
+            self._sb_thumb_y = 0.0
+            self._sb_thumb_h = 0.0
+            return
+
+        w = min(self.scrollbar_width, view.w)
+        track = Rect(view.x + view.w - w, view.y, w, view.h)
+        self._sb_track_rect = track
+
+        thumb_h = max(18.0, track.h * (track.h / max(track.h, bounds.h)))
+        thumb_h = min(thumb_h, track.h)
+        travel = max(0.0, track.h - thumb_h)
+        t = 0.0 if max_y <= 0.0 else _clamp(self.scroll_y / max_y, 0.0, 1.0)
+        self._sb_thumb_h = thumb_h
+        self._sb_thumb_y = track.y + travel * t
+
+    def _is_over_scrollbar(self, x: float, y: float) -> bool:
+        self._update_scrollbar_geometry()
+        if self._sb_track_rect is None:
+            return False
+        return self._sb_track_rect.contains(x, y)
+
+    def _is_over_thumb(self, x: float, y: float) -> bool:
+        if self._sb_track_rect is None or self._sb_thumb_h <= 0.0:
+            return False
+        thumb = Rect(self._sb_track_rect.x, self._sb_thumb_y, self._sb_track_rect.w, self._sb_thumb_h)
+        return thumb.contains(x, y)
+
     def on_wheelmoved(self, x: float, y: float) -> bool:
+        bounds = self.content_bounds()
+        if bounds.h <= self.rect.h + 0.5:
+            return False
         self.scroll_y -= float(y) * self.scroll_speed
         self._apply_scroll_limits()
         return True
+
+    def on_mousepressed(self, x: float, y: float, button: int, presses: int) -> bool:
+        if button != 1:
+            return False
+        if not self._is_over_scrollbar(x, y):
+            return False
+
+        if self._is_over_thumb(x, y):
+            self._sb_dragging = True
+            self._sb_drag_offset = y - self._sb_thumb_y
+            self.set_pressed(True)
+            return True
+
+        track = self._sb_track_rect
+        if track is None:
+            return False
+
+        bounds = self.content_bounds()
+        max_y = max(0.0, bounds.h - self.rect.h)
+        travel = max(0.0, track.h - self._sb_thumb_h)
+        if travel <= 0.0 or max_y <= 0.0:
+            return True
+
+        click_t = (y - track.y - self._sb_thumb_h * 0.5) / travel
+        self.scroll_y = _clamp(click_t, 0.0, 1.0) * max_y
+        self._apply_scroll_limits()
+        self.set_pressed(True)
+        return True
+
+    def on_mousemoved(self, x: float, y: float, dx: float, dy: float) -> bool:
+        self._sb_hover = self._is_over_scrollbar(x, y)
+        if not self._sb_dragging:
+            return False
+
+        track = self._sb_track_rect
+        if track is None:
+            return True
+
+        bounds = self.content_bounds()
+        max_y = max(0.0, bounds.h - self.rect.h)
+        travel = max(0.0, track.h - self._sb_thumb_h)
+        if travel <= 0.0 or max_y <= 0.0:
+            return True
+
+        t = (y - track.y - self._sb_drag_offset) / travel
+        self.scroll_y = _clamp(t, 0.0, 1.0) * max_y
+        self._apply_scroll_limits()
+        return True
+
+    def on_mousereleased(self, x: float, y: float, button: int, presses: int) -> bool:
+        if button != 1:
+            return False
+        if self._sb_dragging or self._pressed:
+            self._sb_dragging = False
+            self.set_pressed(False)
+            return True
+        return False
 
     def hit_test(self, x: float, y: float) -> Optional[Widget]:
         if not self.visible or not self.enabled:
             return None
         if not self.abs_rect().contains(x, y):
             return None
+        if self._is_over_scrollbar(x, y):
+            return self
         for child in reversed(self.children):
             hit = child.hit_test(x, y)
             if hit is not None:
@@ -456,6 +558,23 @@ class ScrollView(Container):
             if _rects_intersect(cr, view):
                 child.draw(love, theme)
         _pop_scissor(love, prev_scissor)
+
+        self._update_scrollbar_geometry()
+        track = self._sb_track_rect
+        if track is None:
+            return
+
+        love.graphics.setColor(1.0, 1.0, 1.0, 1.0)
+        theme.track.draw(love, track.x, track.y, track.w, track.h)
+
+        if self._sb_thumb_h > 0.0:
+            thumb = Rect(track.x, self._sb_thumb_y, track.w, self._sb_thumb_h)
+            if self._sb_dragging:
+                theme.button_pressed.draw(love, thumb.x, thumb.y, thumb.w, thumb.h)
+            elif self._sb_hover:
+                theme.button_hover.draw(love, thumb.x, thumb.y, thumb.w, thumb.h)
+            else:
+                theme.button.draw(love, thumb.x, thumb.y, thumb.w, thumb.h)
 
 
 class VBox(Container):

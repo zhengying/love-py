@@ -130,6 +130,19 @@ if(APPLE)
         VERBATIM
     )
 
+    file(GLOB_RECURSE LOVE_PYTHON_BUILTIN_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/python_builtin/*)
+    set(LOVE_PYTHON_BUILTIN_SYNC_STAMP ${CMAKE_BINARY_DIR}/python_builtin_sync.stamp)
+    add_custom_command(
+        OUTPUT ${LOVE_PYTHON_BUILTIN_SYNC_STAMP}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_SOURCE_DIR}/bin/python/builtin
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/python_builtin ${CMAKE_CURRENT_SOURCE_DIR}/bin/python/builtin
+        COMMAND ${CMAKE_COMMAND} -E touch ${LOVE_PYTHON_BUILTIN_SYNC_STAMP}
+        DEPENDS ${LOVE_PYTHON_BUILTIN_FILES}
+        VERBATIM
+    )
+    add_custom_target(sync_python_builtin DEPENDS ${LOVE_PYTHON_BUILTIN_SYNC_STAMP})
+    add_dependencies(love sync_python_builtin)
+
     add_executable(love_app MACOSX_BUNDLE
         src/love.cpp
     )
