@@ -302,6 +302,13 @@ class TextInput(Widget):
         self._focused = False
         self._scroll_x = 0.0
 
+    @staticmethod
+    def preferred_height(theme: Any, min_height: float = 0.0) -> float:
+        font_h = float(theme.font.getHeight())
+        insets_h = float(theme.input.insets.top) + float(theme.input.insets.bottom)
+        inner_pad = 6.0
+        return max(float(min_height), font_h + insets_h + inner_pad * 2.0)
+
     def set_focused(self, focused: bool) -> None:
         self._focused = focused
 
@@ -318,12 +325,20 @@ class TextInput(Widget):
 
         pad_x = 10.0
         inner = r.inset(theme.input.insets)
-        pad_y = max(0.0, (inner.h - float(theme.font.getHeight())) * 0.5)
+        font_h = float(theme.font.getHeight())
+        if hasattr(theme.font, "getAscent") and hasattr(theme.font, "getDescent"):
+            ascent = float(theme.font.getAscent())
+            descent = float(theme.font.getDescent())
+            line_h = max(0.0, ascent - descent)
+        else:
+            line_h = font_h
+        pad_y = max(0.0, (inner.h - line_h) * 0.5)
+        text_y = inner.y + pad_y
         prev_scissor = _push_scissor(love, inner.x, inner.y, inner.w, inner.h)
 
         if self.text:
             text_w = float(theme.font.getWidth(self.text))
-            avail = max(0.0, r.w - pad_x * 2.0)
+            avail = max(0.0, inner.w - pad_x * 2.0)
             cursor_px = float(theme.font.getWidth(self.text[: self.cursor]))
 
             if self._focused:
@@ -338,30 +353,31 @@ class TextInput(Widget):
             love.graphics.setColor(*theme.text_color)
             love.graphics.print(
                 self.text,
-                _round_half_up(r.x + pad_x - self._scroll_x),
-                _round_half_up(inner.y + pad_y),
+                _round_half_up(inner.x + pad_x - self._scroll_x),
+                _round_half_up(text_y),
             )
 
             if self._focused:
                 t = float(love.timer.getTime())
                 on = int(t * 2) % 2 == 0
                 if on:
-                    cx = r.x + pad_x - self._scroll_x + cursor_px
+                    cx = inner.x + pad_x - self._scroll_x + cursor_px
                     love.graphics.setColor(*theme.text_color)
+                    cursor_h = min(inner.h, max(1.0, line_h))
                     love.graphics.rectangle(
                         "fill",
                         _round_half_up(cx),
-                        _round_half_up(inner.y + pad_y),
+                        _round_half_up(text_y),
                         2,
-                        float(theme.font.getHeight()),
+                        cursor_h,
                     )
         else:
             self._scroll_x = 0.0
             love.graphics.setColor(*theme.text_muted)
             love.graphics.print(
                 self.placeholder,
-                _round_half_up(r.x + pad_x),
-                _round_half_up(inner.y + pad_y),
+                _round_half_up(inner.x + pad_x),
+                _round_half_up(text_y),
             )
 
         _pop_scissor(love, prev_scissor)

@@ -656,6 +656,9 @@ typedef struct {
     Character characters[128];
     GLint filter_min;
     GLint filter_mag;
+    int max_bearing_y;
+    int max_bearing_bottom;
+    int has_glyph_extents;
 } FontObject;
 
 static void font_dealloc(PyObject* self) {
@@ -674,8 +677,48 @@ static void font_dealloc(PyObject* self) {
 
 static PyObject* font_getHeight(PyObject* self, PyObject* args) {
     FontObject* font = (FontObject*)self;
+    if (font->has_glyph_extents) {
+        return PyLong_FromLong(font->max_bearing_y + font->max_bearing_bottom);
+    }
     if (font->face) {
-        return PyLong_FromLong(font->face->size->metrics.height >> 6);
+        double h = (double)font->face->size->metrics.height / 64.0;
+        return PyLong_FromLong((long)ceil(h));
+    }
+    return PyLong_FromLong(0);
+}
+
+static PyObject* font_getAscent(PyObject* self, PyObject* args) {
+    FontObject* font = (FontObject*)self;
+    if (font->has_glyph_extents) {
+        return PyLong_FromLong(font->max_bearing_y);
+    }
+    if (font->face) {
+        double a = (double)font->face->size->metrics.ascender / 64.0;
+        return PyLong_FromLong((long)ceil(a));
+    }
+    return PyLong_FromLong(0);
+}
+
+static PyObject* font_getDescent(PyObject* self, PyObject* args) {
+    FontObject* font = (FontObject*)self;
+    if (font->has_glyph_extents) {
+        return PyLong_FromLong(-font->max_bearing_bottom);
+    }
+    if (font->face) {
+        double d = (double)font->face->size->metrics.descender / 64.0;
+        return PyLong_FromLong((long)floor(d));
+    }
+    return PyLong_FromLong(0);
+}
+
+static PyObject* font_getBaseline(PyObject* self, PyObject* args) {
+    FontObject* font = (FontObject*)self;
+    if (font->has_glyph_extents) {
+        return PyLong_FromLong(font->max_bearing_y);
+    }
+    if (font->face) {
+        double a = (double)font->face->size->metrics.ascender / 64.0;
+        return PyLong_FromLong((long)ceil(a));
     }
     return PyLong_FromLong(0);
 }
@@ -688,8 +731,9 @@ static PyObject* font_getWidth(PyObject* self, PyObject* args) {
     
     float width = 0;
     for (const char* p = text; *p; p++) {
-        if (*p < 128 && font->characters[*p].texture_id != 0) {
-            width += (font->characters[*p].advance >> 6);
+        unsigned char c = (unsigned char)*p;
+        if (c < 128 && font->characters[c].texture_id != 0) {
+            width += (font->characters[c].advance >> 6);
         }
     }
     return PyFloat_FromDouble(width);
@@ -739,6 +783,9 @@ static PyObject* font_setFilter(PyObject* self, PyObject* args) {
 
 static PyMethodDef FontMethods[] = {
     {"getHeight", (PyCFunction)font_getHeight, METH_NOARGS, "Get font height"},
+    {"getAscent", (PyCFunction)font_getAscent, METH_NOARGS, "Get font ascent"},
+    {"getDescent", (PyCFunction)font_getDescent, METH_NOARGS, "Get font descent"},
+    {"getBaseline", (PyCFunction)font_getBaseline, METH_NOARGS, "Get font baseline"},
     {"getWidth", (PyCFunction)font_getWidth, METH_VARARGS, "Get text width"},
     {"setFilter", (PyCFunction)font_setFilter, METH_VARARGS, "Set texture filter (min_filter, mag_filter) - 'linear' or 'nearest'"},
     {nullptr, nullptr, 0, nullptr}
@@ -777,6 +824,9 @@ static PyObject* font_newFont(PyObject* self, PyObject* args) {
     memset(font->characters, 0, sizeof(font->characters));
     font->filter_min = GL_LINEAR;  // Default: linear filtering
     font->filter_mag = GL_LINEAR;
+    font->max_bearing_y = 0;
+    font->max_bearing_bottom = 0;
+    font->has_glyph_extents = 0;
 
     if (FT_New_Face(ft_library, filename, 0, &font->face)) {
         Py_DECREF(font);
@@ -865,6 +915,16 @@ static PyObject* font_newFont(PyObject* self, PyObject* args) {
         font->characters[c].bearing_x = font->face->glyph->bitmap_left;
         font->characters[c].bearing_y = font->face->glyph->bitmap_top;
         font->characters[c].advance = font->face->glyph->advance.x;
+
+        if (width > 0 && height > 0 && texture != 0) {
+            int top = font->characters[c].bearing_y;
+            if (top < 0) top = 0;
+            int bottom = height - font->characters[c].bearing_y;
+            if (bottom < 0) bottom = 0;
+            if (top > font->max_bearing_y) font->max_bearing_y = top;
+            if (bottom > font->max_bearing_bottom) font->max_bearing_bottom = bottom;
+            font->has_glyph_extents = 1;
+        }
     }
 
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -1405,10 +1465,11 @@ static PyObject* graphics_print(PyObject* self, PyObject* args) {
     
     FontObject* font = (FontObject*)g_state.current_font;
     
-    // Get baseline from font metrics
     float baseline = 0.0f;
-    if (font->face && font->face->size) {
-        baseline = (font->face->size->metrics.ascender >> 6);
+    if (font->has_glyph_extents) {
+        baseline = (float)font->max_bearing_y;
+    } else if (font->face && font->face->size) {
+        baseline = (float)ceil((double)font->face->size->metrics.ascender / 64.0);
     }
     
     glEnable(GL_TEXTURE_2D);

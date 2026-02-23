@@ -64,10 +64,12 @@ def love_load():
     _slider = root.add(love_gui.Slider(love_gui.Rect(20, 138, 320, 28), value=_progress, on_change=on_slider))
     _bar = root.add(love_gui.ProgressBar(love_gui.Rect(360, 138, 260, 28), value=_progress))
 
-    _input = root.add(love_gui.TextInput(love_gui.Rect(20, 186, 360, 34), text="", placeholder="Type here..."))
+    input_h = love_gui.TextInput.preferred_height(_theme, min_height=34)
+    delta_y = input_h - 34
+    _input = root.add(love_gui.TextInput(love_gui.Rect(20, 186, 360, input_h), text="", placeholder="Type here..."))
 
-    root.add(love_gui.Label(love_gui.Rect(20, 238, 360, 22), "ScrollView:"))
-    scroll_panel = root.add(love_gui.Panel(love_gui.Rect(20, 266, 420, 320)))
+    root.add(love_gui.Label(love_gui.Rect(20, 238 + delta_y, 360, 22), "ScrollView:"))
+    scroll_panel = root.add(love_gui.Panel(love_gui.Rect(20, 266 + delta_y, 420, 320)))
     scroll = scroll_panel.add(love_gui.ScrollView(love_gui.Rect(10, 10, 400, 300)))
 
     y = 0.0
@@ -76,9 +78,9 @@ def love_load():
         scroll.add(item)
         y += 38.0
 
-    root.add(love_gui.Label(love_gui.Rect(470, 238, 360, 22), "9-slice samples:"))
+    root.add(love_gui.Label(love_gui.Rect(470, 238 + delta_y, 360, 22), "9-slice samples:"))
 
-    samples = root.add(love_gui.Panel(love_gui.Rect(470, 266, 450, 320)))
+    samples = root.add(love_gui.Panel(love_gui.Rect(470, 266 + delta_y, 450, 320)))
     samples.add(love_gui.Label(love_gui.Rect(20, 18, 280, 22), "Panel scales without stretching corners"))
     samples.add(love_gui.Panel(love_gui.Rect(20, 52, 180, 70)))
     samples.add(love_gui.Panel(love_gui.Rect(220, 52, 200, 110)))
