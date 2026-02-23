@@ -1,4 +1,4 @@
-from .types import Rect, Insets
+from .types import Constraints, Insets, Rect, Size
 from .nineslice import NineSlice
 from .theme import Theme, create_default_theme
 from .ui import UI
@@ -8,17 +8,25 @@ from .widgets import (
     Panel,
     Label,
     Button,
+    CheckBox,
     Slider,
     ProgressBar,
     TextInput,
+    MessageBox,
+    PopupMenu,
+    PopupMenuItem,
     ScrollView,
     VBox,
     HBox,
+    FlowLayout,
+    FlexLayout,
 )
 
 __all__ = [
+    "Constraints",
     "Rect",
     "Insets",
+    "Size",
     "NineSlice",
     "Theme",
     "create_default_theme",
@@ -28,10 +36,16 @@ __all__ = [
     "Panel",
     "Label",
     "Button",
+    "CheckBox",
     "Slider",
     "ProgressBar",
     "TextInput",
+    "MessageBox",
+    "PopupMenu",
+    "PopupMenuItem",
     "ScrollView",
     "VBox",
     "HBox",
+    "FlowLayout",
+    "FlexLayout",
 ]
