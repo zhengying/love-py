@@ -16,6 +16,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <cmath>
+#include <cctype>
 #include <sys/stat.h>
 #if defined(_WIN32)
     #include <direct.h>
@@ -732,8 +733,15 @@ static PyObject* font_getWidth(PyObject* self, PyObject* args) {
     float width = 0;
     for (const char* p = text; *p; p++) {
         unsigned char c = (unsigned char)*p;
-        if (c < 128 && font->characters[c].texture_id != 0) {
-            width += (font->characters[c].advance >> 6);
+        if (c < 128) {
+            int adv = (int)(font->characters[c].advance >> 6);
+            if (c == ' ' && font->characters['a'].advance != 0) {
+                int half_a = (int)((font->characters['a'].advance >> 6) * 0.5f);
+                if (half_a > adv) {
+                    adv = half_a;
+                }
+            }
+            width += (float)adv;
         }
     }
     return PyFloat_FromDouble(width);
@@ -1491,37 +1499,42 @@ static PyObject* graphics_print(PyObject* self, PyObject* args) {
     
     for (const char* p = text; *p; p++) {
         unsigned char c = (unsigned char)*p;
-        if (c >= 128 || font->characters[c].texture_id == 0) {
-            // Handle space specially
-            if (c == ' ' && font->face) {
-                cursor_x += (font->characters['a'].advance >> 6) * 0.5f;
-            }
+        if (c >= 128) {
             continue;
         }
         
         Character* ch = &font->characters[c];
-        
-        // Calculate position
-        // Note: OpenGL y=0 is at top (inverted from FreeTYpe), so we flip y
-        // bearing_y is distance from baseline to top of glyph (positive upward in FreeType)
-        // In OpenGL Y-down, we need: baseline - bearing_y to position glyph correctly
-        float xpos = cursor_x + ch->bearing_x;
-        float ypos = baseline - ch->bearing_y;  // Correct: distance down from baseline to glyph top
-        float w = (float)ch->width;
-        float h = (float)ch->height;
-        
-        // Draw textured quad
-        // FreeType bitmap origin is at top-left, so we need to flip V coordinates
-        glBindTexture(GL_TEXTURE_2D, ch->texture_id);
-        glBegin(GL_QUADS);
-        glTexCoord2f(0.0f, 0.0f); glVertex2f(xpos, ypos);         // Top-left vertex uses top-left texcoord
-        glTexCoord2f(1.0f, 0.0f); glVertex2f(xpos + w, ypos);     // Top-right vertex uses top-right texcoord
-        glTexCoord2f(1.0f, 1.0f); glVertex2f(xpos + w, ypos + h); // Bottom-right vertex uses bottom-right texcoord
-        glTexCoord2f(0.0f, 1.0f); glVertex2f(xpos, ypos + h);     // Bottom-left vertex uses bottom-left texcoord
-        glEnd();
+
+        if (ch->texture_id != 0 && ch->width > 0 && ch->height > 0) {
+            // Calculate position
+            // Note: OpenGL y=0 is at top (inverted from FreeTYpe), so we flip y
+            // bearing_y is distance from baseline to top of glyph (positive upward in FreeType)
+            // In OpenGL Y-down, we need: baseline - bearing_y to position glyph correctly
+            float xpos = cursor_x + ch->bearing_x;
+            float ypos = baseline - ch->bearing_y;  // Correct: distance down from baseline to glyph top
+            float w = (float)ch->width;
+            float h = (float)ch->height;
+            
+            // Draw textured quad
+            // FreeType bitmap origin is at top-left, so we need to flip V coordinates
+            glBindTexture(GL_TEXTURE_2D, ch->texture_id);
+            glBegin(GL_QUADS);
+            glTexCoord2f(0.0f, 0.0f); glVertex2f(xpos, ypos);         // Top-left vertex uses top-left texcoord
+            glTexCoord2f(1.0f, 0.0f); glVertex2f(xpos + w, ypos);     // Top-right vertex uses top-right texcoord
+            glTexCoord2f(1.0f, 1.0f); glVertex2f(xpos + w, ypos + h); // Bottom-right vertex uses bottom-right texcoord
+            glTexCoord2f(0.0f, 1.0f); glVertex2f(xpos, ypos + h);     // Bottom-left vertex uses bottom-left texcoord
+            glEnd();
+        }
         
         // Advance cursor (advance is in 26.6 fixed point format)
-        cursor_x += (ch->advance >> 6);
+        int adv = (int)(ch->advance >> 6);
+        if (c == ' ' && font->characters['a'].advance != 0) {
+            int half_a = (int)((font->characters['a'].advance >> 6) * 0.5f);
+            if (half_a > adv) {
+                adv = half_a;
+            }
+        }
+        cursor_x += (float)adv;
     }
     
     glPopMatrix();
@@ -2385,6 +2398,45 @@ bool callPythonKeyCallback(PyObject* callback, const char* key, int scancode, bo
     return true;
 }
 
+static const char* normalizeKeyName(SDL_Keycode keycode) {
+    switch (keycode) {
+        case SDLK_BACKSPACE: return "backspace";
+        case SDLK_DELETE: return "delete";
+        case SDLK_LEFT: return "left";
+        case SDLK_RIGHT: return "right";
+        case SDLK_UP: return "up";
+        case SDLK_DOWN: return "down";
+        case SDLK_HOME: return "home";
+        case SDLK_END: return "end";
+        case SDLK_RETURN: return "return";
+        case SDLK_ESCAPE: return "escape";
+        case SDLK_TAB: return "tab";
+        case SDLK_SPACE: return "space";
+        case SDLK_LSHIFT: return "lshift";
+        case SDLK_RSHIFT: return "rshift";
+        case SDLK_LCTRL: return "lctrl";
+        case SDLK_RCTRL: return "rctrl";
+        case SDLK_LALT: return "lalt";
+        case SDLK_RALT: return "ralt";
+        case SDLK_LGUI: return "lgui";
+        case SDLK_RGUI: return "rgui";
+        default: break;
+    }
+
+    const char* name = SDL_GetKeyName(keycode);
+    if (!name) return "";
+
+    static thread_local std::string normalized;
+    normalized.clear();
+
+    for (const unsigned char* p = (const unsigned char*)name; *p; ++p) {
+        if (*p == ' ')
+            continue;
+        normalized.push_back((char)std::tolower(*p));
+    }
+    return normalized.c_str();
+}
+
 static bool callPythonKeyReleasedCallback(PyObject* callback, const char* key, int scancode) {
     if (!callback || callback == Py_None) return true;
 
@@ -2726,7 +2778,7 @@ int runGame() {
                         g_state.running = false;
                     }
                     if (g_state.py_keypressed) {
-                        const char* key = SDL_GetKeyName(event.key.key);
+                        const char* key = normalizeKeyName(event.key.key);
                         callPythonKeyCallback(g_state.py_keypressed, key, 
                                             event.key.scancode, 
                                             event.key.repeat != 0);
@@ -2735,7 +2787,7 @@ int runGame() {
                     
                 case SDL_EVENT_KEY_UP:
                     if (g_state.py_keyreleased) {
-                        const char* key = SDL_GetKeyName(event.key.key);
+                        const char* key = normalizeKeyName(event.key.key);
                         callPythonKeyReleasedCallback(g_state.py_keyreleased, key, event.key.scancode);
                     }
                     break;
