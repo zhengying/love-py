@@ -20,6 +20,40 @@ def _rects_intersect(a: Rect, b: Rect) -> bool:
     return not (a.right <= b.x or b.right <= a.x or a.bottom <= b.y or b.bottom <= a.y)
 
 
+def _round_half_up(v: float) -> float:
+    if v >= 0.0:
+        return float(int(v + 0.5))
+    return float(int(v - 0.5))
+
+
+def _pixel_align_rect(r: Rect) -> Rect:
+    x0 = _round_half_up(r.x)
+    y0 = _round_half_up(r.y)
+    x1 = _round_half_up(r.x + r.w)
+    y1 = _round_half_up(r.y + r.h)
+    return Rect(x0, y0, max(0.0, x1 - x0), max(0.0, y1 - y0))
+
+
+def _push_scissor(love: Any, x: float, y: float, w: float, h: float) -> Any:
+    prev = love.graphics.getScissor()
+    ix = int(_round_half_up(x))
+    iy = int(_round_half_up(y))
+    iw = int(max(0.0, _round_half_up(w)))
+    ih = int(max(0.0, _round_half_up(h)))
+    if prev is None:
+        love.graphics.setScissor(ix, iy, iw, ih)
+    else:
+        love.graphics.intersectScissor(ix, iy, iw, ih)
+    return prev
+
+
+def _pop_scissor(love: Any, prev: Any) -> None:
+    if prev is None:
+        love.graphics.setScissor()
+        return
+    love.graphics.setScissor(prev[0], prev[1], prev[2], prev[3])
+
+
 class Widget:
     def __init__(self, rect: Rect) -> None:
         self.rect = rect
@@ -42,7 +76,7 @@ class Widget:
                 x -= p.scroll_x
                 y -= p.scroll_y
             p = p.parent
-        return Rect(x, y, self.rect.w, self.rect.h)
+        return _pixel_align_rect(Rect(x, y, self.rect.w, self.rect.h))
 
     def set_hovered(self, hovered: bool) -> None:
         self._hovered = hovered
@@ -120,6 +154,7 @@ class Panel(Container):
 
     def draw(self, love: Any, theme: Any) -> None:
         r = self.abs_rect()
+        love.graphics.setColor(1.0, 1.0, 1.0, 1.0)
         theme.panel.draw(love, r.x, r.y, r.w, r.h)
         super().draw(love, theme)
 
@@ -132,7 +167,7 @@ class Label(Widget):
     def draw(self, love: Any, theme: Any) -> None:
         r = self.abs_rect()
         love.graphics.setColor(*theme.text_color)
-        love.graphics.print(self.text, r.x, r.y)
+        love.graphics.print(self.text, _round_half_up(r.x), _round_half_up(r.y))
 
 
 class Button(Widget):
@@ -144,6 +179,7 @@ class Button(Widget):
 
     def draw(self, love: Any, theme: Any) -> None:
         r = self.abs_rect()
+        love.graphics.setColor(1.0, 1.0, 1.0, 1.0)
         if self._pressed and self._hovered:
             theme.button_pressed.draw(love, r.x, r.y, r.w, r.h)
         elif self._hovered:
@@ -156,7 +192,7 @@ class Button(Widget):
         th = float(theme.font.getHeight())
         tx = r.x + max(6.0, (r.w - tw) * 0.5)
         ty = r.y + max(4.0, (r.h - th) * 0.5)
-        love.graphics.print(self.text, tx, ty)
+        love.graphics.print(self.text, _round_half_up(tx), _round_half_up(ty))
 
     def on_mousepressed(self, x: float, y: float, button: int, presses: int) -> bool:
         if button != 1:
@@ -183,10 +219,12 @@ class ProgressBar(Widget):
 
     def draw(self, love: Any, theme: Any) -> None:
         r = self.abs_rect()
+        love.graphics.setColor(1.0, 1.0, 1.0, 1.0)
         theme.track.draw(love, r.x, r.y, r.w, r.h)
-        fill_w = max(0.0, r.w * _clamp(self.value, 0.0, 1.0))
+        inner = r.inset(theme.track.insets)
+        fill_w = max(0.0, inner.w * _clamp(self.value, 0.0, 1.0))
         if fill_w > 0:
-            theme.fill.draw(love, r.x, r.y, fill_w, r.h)
+            theme.fill.draw(love, inner.x, inner.y, fill_w, inner.h)
 
 
 class Slider(Widget):
@@ -202,11 +240,16 @@ class Slider(Widget):
         knob_h = min(r.h, 26.0)
         x = r.x + (r.w - knob_w) * self.value
         y = r.y + (r.h - knob_h) * 0.5
-        return Rect(x, y, knob_w, knob_h)
+        return _pixel_align_rect(Rect(x, y, knob_w, knob_h))
 
     def draw(self, love: Any, theme: Any) -> None:
         r = self.abs_rect()
+        love.graphics.setColor(1.0, 1.0, 1.0, 1.0)
         theme.track.draw(love, r.x, r.y, r.w, r.h)
+        inner = r.inset(theme.track.insets)
+        fill_w = max(0.0, inner.w * _clamp(self.value, 0.0, 1.0))
+        if fill_w > 0:
+            theme.fill.draw(love, inner.x, inner.y, fill_w, inner.h)
         kr = self._knob_rect()
         if self._pressed:
             theme.button_pressed.draw(love, kr.x, kr.y, kr.w, kr.h)
@@ -257,6 +300,7 @@ class TextInput(Widget):
         self.placeholder = placeholder
         self.cursor = len(text)
         self._focused = False
+        self._scroll_x = 0.0
 
     def set_focused(self, focused: bool) -> None:
         self._focused = focused
@@ -269,22 +313,58 @@ class TextInput(Widget):
 
     def draw(self, love: Any, theme: Any) -> None:
         r = self.abs_rect()
+        love.graphics.setColor(1.0, 1.0, 1.0, 1.0)
         theme.input.draw(love, r.x, r.y, r.w, r.h)
 
-        text = self.text if self.text else self.placeholder
-        color = theme.text_color if self.text else theme.text_muted
-        love.graphics.setColor(*color)
         pad_x = 10.0
-        pad_y = max(4.0, (r.h - float(theme.font.getHeight())) * 0.5)
-        love.graphics.print(text, r.x + pad_x, r.y + pad_y)
+        inner = r.inset(theme.input.insets)
+        pad_y = max(0.0, (inner.h - float(theme.font.getHeight())) * 0.5)
+        prev_scissor = _push_scissor(love, inner.x, inner.y, inner.w, inner.h)
 
-        if self._focused:
-            t = float(love.timer.getTime())
-            on = int(t * 2) % 2 == 0
-            if on:
-                cx = r.x + pad_x + self._cursor_x(theme.font)
-                love.graphics.setColor(*theme.text_color)
-                love.graphics.rectangle("fill", cx, r.y + pad_y, 2, float(theme.font.getHeight()))
+        if self.text:
+            text_w = float(theme.font.getWidth(self.text))
+            avail = max(0.0, r.w - pad_x * 2.0)
+            cursor_px = float(theme.font.getWidth(self.text[: self.cursor]))
+
+            if self._focused:
+                if cursor_px - self._scroll_x > avail:
+                    self._scroll_x = cursor_px - avail + 2.0
+                if cursor_px - self._scroll_x < 0.0:
+                    self._scroll_x = max(0.0, cursor_px - 2.0)
+                self._scroll_x = _clamp(self._scroll_x, 0.0, max(0.0, text_w - avail))
+            else:
+                self._scroll_x = max(0.0, text_w - avail)
+
+            love.graphics.setColor(*theme.text_color)
+            love.graphics.print(
+                self.text,
+                _round_half_up(r.x + pad_x - self._scroll_x),
+                _round_half_up(inner.y + pad_y),
+            )
+
+            if self._focused:
+                t = float(love.timer.getTime())
+                on = int(t * 2) % 2 == 0
+                if on:
+                    cx = r.x + pad_x - self._scroll_x + cursor_px
+                    love.graphics.setColor(*theme.text_color)
+                    love.graphics.rectangle(
+                        "fill",
+                        _round_half_up(cx),
+                        _round_half_up(inner.y + pad_y),
+                        2,
+                        float(theme.font.getHeight()),
+                    )
+        else:
+            self._scroll_x = 0.0
+            love.graphics.setColor(*theme.text_muted)
+            love.graphics.print(
+                self.placeholder,
+                _round_half_up(r.x + pad_x),
+                _round_half_up(inner.y + pad_y),
+            )
+
+        _pop_scissor(love, prev_scissor)
 
     def on_mousepressed(self, x: float, y: float, button: int, presses: int) -> bool:
         if button != 1:
@@ -368,12 +448,14 @@ class ScrollView(Container):
 
     def draw(self, love: Any, theme: Any) -> None:
         view = self.abs_rect()
+        prev_scissor = _push_scissor(love, view.x, view.y, view.w, view.h)
         for child in self.children:
             if not child.visible:
                 continue
             cr = child.abs_rect()
             if _rects_intersect(cr, view):
                 child.draw(love, theme)
+        _pop_scissor(love, prev_scissor)
 
 
 class VBox(Container):

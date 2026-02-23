@@ -50,6 +50,11 @@ struct GameState {
     // Graphics state
     float color_r = 1.0f, color_g = 1.0f, color_b = 1.0f, color_a = 1.0f;
     float bg_r = 0.0f, bg_g = 0.0f, bg_b = 0.0f, bg_a = 1.0f;
+    bool scissor_enabled = false;
+    int scissor_x = 0;
+    int scissor_y = 0;
+    int scissor_w = 0;
+    int scissor_h = 0;
     
     // Python callbacks
     PyObject* py_conf = nullptr;
@@ -1043,6 +1048,92 @@ static PyObject* graphics_scale(PyObject* self, PyObject* args) {
     Py_RETURN_NONE;
 }
 
+static int getCurrentTargetHeight() {
+    if (g_state.current_canvas && g_state.current_canvas != Py_None && PyObject_TypeCheck(g_state.current_canvas, &CanvasType)) {
+        CanvasObject* canvas = (CanvasObject*)g_state.current_canvas;
+        return canvas->height;
+    }
+    return g_state.height;
+}
+
+static PyObject* graphics_setScissor(PyObject* self, PyObject* args) {
+    Py_ssize_t n = PyTuple_Size(args);
+    if (n == 0) {
+        glDisable(GL_SCISSOR_TEST);
+        g_state.scissor_enabled = false;
+        g_state.scissor_x = 0;
+        g_state.scissor_y = 0;
+        g_state.scissor_w = 0;
+        g_state.scissor_h = 0;
+        Py_RETURN_NONE;
+    }
+
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+    if (!PyArg_ParseTuple(args, "iiii", &x, &y, &w, &h)) {
+        return nullptr;
+    }
+    if (w < 0 || h < 0) {
+        PyErr_SetString(PyExc_ValueError, "Scissor width/height must be non-negative");
+        return nullptr;
+    }
+
+    const int target_h = getCurrentTargetHeight();
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(x, target_h - y - h, w, h);
+    g_state.scissor_enabled = true;
+    g_state.scissor_x = x;
+    g_state.scissor_y = y;
+    g_state.scissor_w = w;
+    g_state.scissor_h = h;
+    Py_RETURN_NONE;
+}
+
+static PyObject* graphics_getScissor(PyObject* self, PyObject* args) {
+    if (!g_state.scissor_enabled) {
+        Py_RETURN_NONE;
+    }
+    return Py_BuildValue("(iiii)", g_state.scissor_x, g_state.scissor_y, g_state.scissor_w, g_state.scissor_h);
+}
+
+static PyObject* graphics_intersectScissor(PyObject* self, PyObject* args) {
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+    if (!PyArg_ParseTuple(args, "iiii", &x, &y, &w, &h)) {
+        return nullptr;
+    }
+    if (w < 0 || h < 0) {
+        PyErr_SetString(PyExc_ValueError, "Scissor width/height must be non-negative");
+        return nullptr;
+    }
+
+    if (!g_state.scissor_enabled) {
+        PyObject* t = Py_BuildValue("(iiii)", x, y, w, h);
+        if (!t) return nullptr;
+        PyObject* r = graphics_setScissor(self, t);
+        Py_DECREF(t);
+        return r;
+    }
+
+    const int left = (g_state.scissor_x > x) ? g_state.scissor_x : x;
+    const int top = (g_state.scissor_y > y) ? g_state.scissor_y : y;
+    const int right = ((g_state.scissor_x + g_state.scissor_w) < (x + w)) ? (g_state.scissor_x + g_state.scissor_w) : (x + w);
+    const int bottom = ((g_state.scissor_y + g_state.scissor_h) < (y + h)) ? (g_state.scissor_y + g_state.scissor_h) : (y + h);
+
+    const int iw = (right > left) ? (right - left) : 0;
+    const int ih = (bottom > top) ? (bottom - top) : 0;
+
+    PyObject* t = Py_BuildValue("(iiii)", left, top, iw, ih);
+    if (!t) return nullptr;
+    PyObject* r = graphics_setScissor(self, t);
+    Py_DECREF(t);
+    return r;
+}
+
 static PyObject* graphics_getWidth(PyObject* self, PyObject* args) {
     return PyLong_FromLong(g_state.width);
 }
@@ -1477,6 +1568,9 @@ static PyMethodDef GraphicsMethods[] = {
     {"translate", graphics_translate, METH_VARARGS, "Translate (dx, dy)"},
     {"rotate", graphics_rotate, METH_VARARGS, "Rotate (angle in radians)"},
     {"scale", graphics_scale, METH_VARARGS, "Scale (sx, sy)"},
+    {"setScissor", graphics_setScissor, METH_VARARGS, "Set scissor rectangle (x, y, w, h) or clear ()"},
+    {"getScissor", graphics_getScissor, METH_NOARGS, "Get scissor rectangle or None"},
+    {"intersectScissor", graphics_intersectScissor, METH_VARARGS, "Intersect current scissor with (x, y, w, h)"},
     {"getWidth", graphics_getWidth, METH_NOARGS, "Get screen width"},
     {"getHeight", graphics_getHeight, METH_NOARGS, "Get screen height"},
     {"getDimensions", graphics_getDimensions, METH_NOARGS, "Get screen dimensions"},

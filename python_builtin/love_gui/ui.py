@@ -109,9 +109,12 @@ class UI:
 
     def on_wheelmoved(self, x: float, y: float) -> None:
         target = self._hit_test(self.pointer.x, self.pointer.y)
-        if target is None:
-            return
-        target.on_wheelmoved(float(x), float(y))
+        dx = float(x)
+        dy = float(y)
+        while target is not None:
+            if target.on_wheelmoved(dx, dy):
+                return
+            target = target.parent
 
     def on_keypressed(self, key: str, scancode: Any, isrepeat: bool) -> None:
         if self.focused is None:
