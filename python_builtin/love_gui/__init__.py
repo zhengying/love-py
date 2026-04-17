@@ -20,6 +20,7 @@ from .widgets import (
     HBox,
     FlowLayout,
     FlexLayout,
+    SplitView,
 )
 
 __all__ = [
@@ -48,4 +49,5 @@ __all__ = [
     "HBox",
     "FlowLayout",
     "FlexLayout",
+    "SplitView",
 ]

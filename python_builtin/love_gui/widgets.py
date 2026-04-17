@@ -1649,3 +1649,137 @@ class FlexLayout(Container):
         w = (main + pad_main) if is_row else (cross + pad_cross)
         h = (cross + pad_cross) if is_row else (main + pad_main)
         return constraints.constrain(Size(w, h))
+
+
+class SplitView(Container):
+    def __init__(
+        self,
+        rect: Rect,
+        *,
+        direction: str = "row",
+        ratio: float = 0.5,
+        divider_size: float = 8.0,
+        min_a: float = 80.0,
+        min_b: float = 80.0,
+        auto_layout: bool = True,
+    ) -> None:
+        super().__init__(rect)
+        self.direction = direction
+        self.ratio = float(ratio)
+        self.divider_size = float(divider_size)
+        self.min_a = float(min_a)
+        self.min_b = float(min_b)
+        self.auto_layout = bool(auto_layout)
+
+        self._dragging = False
+        self._drag_offset = 0.0
+
+    def add(self, child: Widget) -> Widget:
+        if len(self.children) >= 2:
+            raise ValueError("SplitView supports at most two children")
+        return super().add(child)
+
+    def _solve_sizes(self, total_main: float) -> tuple[float, float]:
+        total_main = max(0.0, float(total_main))
+        avail = max(0.0, total_main - self.divider_size)
+        if avail <= 0.0:
+            return 0.0, 0.0
+
+        lo = max(0.0, self.min_a)
+        hi = max(0.0, avail - max(0.0, self.min_b))
+        if hi < lo:
+            lo = 0.0
+            hi = avail
+
+        a = _clamp(avail * float(self.ratio), lo, hi)
+        b = max(0.0, avail - a)
+        return a, b
+
+    def _divider_abs_rect(self) -> Rect:
+        r = self.abs_rect()
+        is_row = self.direction != "column"
+        a, _b = self._solve_sizes(r.w if is_row else r.h)
+        if is_row:
+            return Rect(r.x + a, r.y, self.divider_size, r.h)
+        return Rect(r.x, r.y + a, r.w, self.divider_size)
+
+    def layout(self) -> None:
+        is_row = self.direction != "column"
+        if len(self.children) == 0:
+            return
+        if len(self.children) == 1:
+            self.children[0].rect = Rect(0.0, 0.0, float(self.rect.w), float(self.rect.h))
+            return
+
+        a, b = self._solve_sizes(self.rect.w if is_row else self.rect.h)
+        if is_row:
+            self.children[0].rect = Rect(0.0, 0.0, a, float(self.rect.h))
+            self.children[1].rect = Rect(a + self.divider_size, 0.0, b, float(self.rect.h))
+        else:
+            self.children[0].rect = Rect(0.0, 0.0, float(self.rect.w), a)
+            self.children[1].rect = Rect(0.0, a + self.divider_size, float(self.rect.w), b)
+
+    def layout_tree(self, theme: Any) -> None:
+        if self.auto_layout:
+            self.layout()
+        super().layout_tree(theme)
+
+    def draw(self, love: Any, theme: Any) -> None:
+        super().draw(love, theme)
+        if len(self.children) < 2 or self.divider_size <= 0.0:
+            return
+
+        d = self._divider_abs_rect()
+        love.graphics.setColor(1.0, 1.0, 1.0, 1.0)
+        if self._dragging or self.is_pressed_visual():
+            theme.button_pressed.draw(love, d.x, d.y, d.w, d.h)
+        elif self._hovered:
+            theme.button_hover.draw(love, d.x, d.y, d.w, d.h)
+        else:
+            theme.track.draw(love, d.x, d.y, d.w, d.h)
+
+    def on_mousepressed(self, x: float, y: float, button: int, presses: int) -> bool:
+        if button != 1:
+            return False
+        if not self._divider_abs_rect().contains(float(x), float(y)):
+            return False
+        self.set_pressed(True)
+        self._dragging = True
+        d = self._divider_abs_rect()
+        is_row = self.direction != "column"
+        self._drag_offset = float(x - d.x) if is_row else float(y - d.y)
+        return True
+
+    def on_mousemoved(self, x: float, y: float, dx: float, dy: float) -> bool:
+        if not self._dragging:
+            return False
+
+        r = self.abs_rect()
+        is_row = self.direction != "column"
+        total_main = r.w if is_row else r.h
+        avail = max(0.0, float(total_main) - self.divider_size)
+        if avail <= 0.0:
+            return True
+
+        origin = r.x if is_row else r.y
+        mouse_main = float(x) if is_row else float(y)
+        new_a = mouse_main - origin - self._drag_offset
+
+        lo = max(0.0, self.min_a)
+        hi = max(0.0, avail - max(0.0, self.min_b))
+        if hi < lo:
+            lo = 0.0
+            hi = avail
+
+        a = _clamp(float(new_a), lo, hi)
+        self.ratio = 0.0 if avail <= 0.0 else float(a / avail)
+        return True
+
+    def on_mousereleased(self, x: float, y: float, button: int, presses: int) -> bool:
+        if button != 1:
+            return False
+        if self._dragging or self._pressed:
+            self._dragging = False
+            self.set_pressed(False)
+            return True
+        return False

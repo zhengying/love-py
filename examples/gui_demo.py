@@ -165,7 +165,7 @@ def love_load():
         scroll.add(item)
         y += 38.0
 
-    root.add(love_gui.Label(love_gui.Rect(470, section_label_y, 360, 22), "Layout demo:"))
+    root.add(love_gui.Label(love_gui.Rect(470, section_label_y, 360, 22), "Layout demo (SplitView + Flow/Flex):"))
 
     layout_demo = root.add(love_gui.Panel(love_gui.Rect(470, scroll_panel_y, 450, scroll_panel_h)))
 
@@ -198,14 +198,25 @@ def love_load():
 
     columns_y = 12.0 + controls_h + 12.0
     columns_h = max(0.0, layout_demo.rect.h - columns_y - 12.0)
-    gap = 12.0
-    col_w = max(0.0, (layout_demo.rect.w - 24.0 - gap) * 0.5)
 
-    flow_panel = layout_demo.add(love_gui.Panel(love_gui.Rect(12, columns_y, col_w, columns_h)))
-    flex_panel = layout_demo.add(love_gui.Panel(love_gui.Rect(12 + col_w + gap, columns_y, col_w, columns_h)))
+    split = layout_demo.add(
+        love_gui.SplitView(
+            love_gui.Rect(12, columns_y, layout_demo.rect.w - 24.0, columns_h),
+            direction="row",
+            ratio=0.5,
+            divider_size=10.0,
+            min_a=160.0,
+            min_b=160.0,
+        )
+    )
+    flow_panel = split.add(love_gui.Panel(love_gui.Rect(0, 0, 0, 0)))
+    flex_panel = split.add(love_gui.Panel(love_gui.Rect(0, 0, 0, 0)))
+    split.layout()
 
-    flow_panel.add(love_gui.Label(love_gui.Rect(12, 10, col_w - 24, 22), "FlowLayout"))
-    flow_view = flow_panel.add(love_gui.ScrollView(love_gui.Rect(12, 36, col_w - 24, max(0.0, columns_h - 48))))
+    flow_inner_w = max(0.0, flow_panel.rect.w - 24.0)
+    flow_inner_h = max(0.0, flow_panel.rect.h - 48.0)
+    flow_panel.add(love_gui.Label(love_gui.Rect(12, 10, flow_inner_w, 22), "FlowLayout"))
+    flow_view = flow_panel.add(love_gui.ScrollView(love_gui.Rect(12, 36, flow_inner_w, flow_inner_h)))
     content_w = max(0.0, flow_view.rect.w - 14.0)
     flow = flow_view.add(love_gui.FlowLayout(love_gui.Rect(0, 0, content_w, 0), spacing=8.0, run_spacing=8.0, align="start"))
     for text in [
@@ -224,8 +235,10 @@ def love_load():
     ]:
         flow.add(love_gui.Button(love_gui.Rect(0, 0, 0, 34), text))
 
-    flex_panel.add(love_gui.Label(love_gui.Rect(12, 10, col_w - 24, 22), "FlexLayout"))
-    flex_view = flex_panel.add(love_gui.ScrollView(love_gui.Rect(12, 36, col_w - 24, max(0.0, columns_h - 48))))
+    flex_inner_w = max(0.0, flex_panel.rect.w - 24.0)
+    flex_inner_h = max(0.0, flex_panel.rect.h - 48.0)
+    flex_panel.add(love_gui.Label(love_gui.Rect(12, 10, flex_inner_w, 22), "FlexLayout"))
+    flex_view = flex_panel.add(love_gui.ScrollView(love_gui.Rect(12, 36, flex_inner_w, flex_inner_h)))
     flex_content_w = max(0.0, flex_view.rect.w - 14.0)
     flex = flex_view.add(
         love_gui.FlexLayout(
