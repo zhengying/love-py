@@ -1,6 +1,6 @@
 # LOVE2D Python
 
-Python bindings for the LÖVE 2D game framework - use Python instead of Lua for game development!
+python version LÖVE 2D game framework - use Python instead of Lua for game development!
 
 ## Architecture
 
